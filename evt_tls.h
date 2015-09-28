@@ -65,7 +65,7 @@ typedef struct evt_ctx_s
     void *live_con[2];
 
     net_wrtr writer;
-    net_rdr  rdr
+    net_rdr  rdr;
 } evt_ctx_t;
 
 
