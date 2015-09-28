@@ -140,18 +140,18 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
     int rv =  BIO_write(c->app_bio_, data, sz);
     assert( rv == sz);
 
-    //if handshake is not complete, do it again
-    if (!SSL_is_init_finished(c->ssl)) {
-	rv = evt__ssl_op(c, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
-    }
-    else {
-	char txt[16*1024] = {0};
-	//char *txt = NULL;
-	//rv = SSL_read(c->ssl, txt, sizeof(txt));
-	int sz = sizeof(txt);
-	rv = evt__ssl_op(c, EVT_TLS_OP_READ, txt, NULL);
-	printf("%s", txt);
-    }
+//    //if handshake is not complete, do it again
+//    if (!SSL_is_init_finished(c->ssl)) {
+//	rv = evt__ssl_op(c, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
+//    }
+//    else {
+//	char txt[16*1024] = {0};
+//	//char *txt = NULL;
+//	//rv = SSL_read(c->ssl, txt, sizeof(txt));
+//	int sz = sizeof(txt);
+//	rv = evt__ssl_op(c, EVT_TLS_OP_READ, txt, NULL);
+//	printf("%s", txt);
+//    }
     return rv;
 }
 
@@ -180,11 +180,15 @@ int evt__ssl_op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
 	case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(c->ssl);
             bytes = after__wrk(c, tbuf);
-	    if  (1 == r) {
-		if (!SSL_get_role(c->ssl)) {
+	    if  (1 == r) { // XXX handle r == 0, which is shutdown
+		if (!SSL_get_role(c->ssl)) { //client
 		    assert(c->connect_cb != NULL );
 		    c->connect_cb(c, r);
 	        }
+		else { //server
+		    assert(c->accept_cb != NULL );
+                    c->accept_cb(c, r);
+		}
 	    }
 	    break;
         }
@@ -192,37 +196,39 @@ int evt__ssl_op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
         case EVT_TLS_OP_READ: {
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
             bytes = after__wrk(c, tbuf);
-	    if ( r > 0 ) {
+            if ( r > 0 ) {
                 if( c->allocator) {
-		    assert(c->read_cb != NULL);
+                    assert(c->rd_cb != NULL);
                     c->allocator(c, r, buf);
 		    memcpy(buf, tbuf, r);
-                    c->read_cb(c, buf, r);
+                    c->rd_cb(c, buf, r);
                 }
 
 		//adhoc code, XXX remove later
 		memcpy(buf, tbuf, r);
 
             }
-
             break;
 	}
 
-	case EVT_TLS_OP_WRITE:
-	r = SSL_write(c->ssl, buf, *sz);
-	bytes = after__wrk(c, tbuf);
-	if ( r > 0 ) {
-	    if ( c->write_cb) {
-		c->write_cb(c, r);
-	    }
-	}
-	break;
+	case EVT_TLS_OP_WRITE: {
+	   r = SSL_write(c->ssl, buf, *sz);
+	   bytes = after__wrk(c, tbuf);
+	   if ( r > 0 ) {
+	       if ( c->write_cb) {
+                   c->write_cb(c, r);
+               }
+           }
+	   break;
+        }
 
-	case EVT_TLS_OP_SHUTDOWN:
-	r = SSL_shutdown(c->ssl);
-	if ( r < 0 )
-	    bytes = after__wrk(c, tbuf);
-	break;
+	case EVT_TLS_OP_SHUTDOWN: {
+            r = SSL_shutdown(c->ssl);
+            if ( r < 0 ) {
+                bytes = after__wrk(c, tbuf);
+            }
+            break;
+	}
 
 	default:
 	assert( 0 && "Unsupported operation");
@@ -238,12 +244,13 @@ int evt_tls_connect(evt_tls_t *con, evt_conn_cb on_connect)
     return evt__ssl_op(con, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
 }
 
-int evt_tls_accept( evt_tls_t *svc)
+int evt_tls_accept( evt_tls_t *svc, evt_accept_cb cb)
 {
     assert(svc != NULL);
     SSL_set_accept_state(svc->ssl);
+    svc->accept_cb = cb;
+
     return evt__ssl_op(svc, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
-//int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
 }
 
 
@@ -259,7 +266,8 @@ int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read )
     assert(c != NULL);
     char *msg = NULL;
     c->allocator = allok;
-    c->read_cb = on_read;
+    c->rd_cb = on_read;
+    return 0;
 }
 
 

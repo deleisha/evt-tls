@@ -2,7 +2,7 @@
 #define EVT_TLS_H
 
 
-#ifdef __cplusplus 
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -22,7 +22,8 @@ typedef void (*evt_allocator)(evt_tls_t *con, int size, void *buf);
 typedef void (*evt_read_cb)(evt_tls_t *con, void *buf, int size);
 typedef void (*evt_write_cb)(evt_tls_t *con, int status);
 
-typedef int (*net_wrtr)(evt_tls_t *con, void *edata, int len);
+typedef int (*net_wrtr)(evt_tls_t *tls, void *edata, int len);
+typedef int (*net_rdr)(evt_tls_t *tls, void *edata, int len);
 
 
 struct evt_tls_s {
@@ -40,7 +41,7 @@ struct evt_tls_s {
     evt_accept_cb accept_cb;
 
     evt_allocator allocator;
-    evt_read_cb read_cb;
+    evt_read_cb rd_cb;
     evt_write_cb write_cb;
 
     QUEUE q;
@@ -64,6 +65,7 @@ typedef struct evt_ctx_s
     void *live_con[2];
 
     net_wrtr writer;
+    net_rdr  rdr
 } evt_ctx_t;
 
 
@@ -97,7 +99,7 @@ void evt_tls_set_nio(evt_tls_t *c, int (*fn)(evt_tls_t *t, void *data, int sz));
 
 
 int evt_tls_connect(evt_tls_t *con, evt_conn_cb cb);
-int evt_tls_accept( evt_tls_t *tls);
+int evt_tls_accept( evt_tls_t *tls, evt_accept_cb cb);
 int evt_tls_write(evt_tls_t *c, void *msg, int *str_len, evt_write_cb on_write);
 int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read );
 
