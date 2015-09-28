@@ -53,11 +53,6 @@ void on_connect(evt_tls_t *tls, int status)
     }
 }
 
-int test_tls_connect(test_tls_t *t, evt_conn_cb on_connect)
-{
-    return evt_tls_connect(t->endpts, on_connect);
-}
-
 //test nio_handler
 int test_nio_hdlr(evt_tls_t *c, void *buf, int sz)
 {
@@ -77,13 +72,27 @@ int process_recv_data(test_tls_t *stream )
     }
     test_data.stalled = 1;
     r = evt_tls_feed_data(stream->endpts, test_data.data, test_data.sz); 
-    process_recv_data(stream->peer);
+    //process_recv_data(stream->peer);
     return r;
 }
 
-int test_tls_accept(test_tls_t *tls)
+int test_tls_connect(test_tls_t *t, evt_conn_cb on_connect)
 {
-    process_recv_data(tls);
+    return evt_tls_connect(t->endpts, on_connect);
+}
+
+
+
+void on_accept(evt_tls_t *svc, int status)
+{
+    printf("On_accept called\n");
+}
+
+int test_tls_accept(test_tls_t *tls, evt_accept_cb on_accept)
+{
+//    process_recv_data(tls);
+    return evt_tls_accept(tls->endpts, on_accept);
+
     return 0;
 }
 
@@ -127,7 +136,17 @@ int main()
     clnt_hdl->peer = svc_hdl;
 
     test_tls_connect(clnt_hdl, on_connect);
-    test_tls_accept(svc_hdl);
+    //client has sent some data to server, process it now
+    process_recv_data(svc_hdl);
+    test_tls_accept(svc_hdl, on_accept);
+//    //server has responded
+//    process_recv_data(clnt_hdl);
+    //continue the handshake
+//    process_recv_data(svc_hdl);
+//    process_recv_data(clnt_hdl);
+//    process_recv_data(svc_hdl);
+//    process_recv_data(clnt_hdl);
+
         
     free(clnt_hdl);
     free(svc_hdl);
