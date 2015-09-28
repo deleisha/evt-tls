@@ -91,6 +91,8 @@ int evt_ctx_is_key_set(evt_ctx_t *t);
 
 evt_tls_t *getSSL(evt_ctx_t *d_eng);
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer);
+void evt_ctx_set_rdr(evt_ctx_t *ctx, net_rdr my_rdr);
+void evt_ctx_set_nio(evt_ctx_t *ctx, net_wrtr my_writer, net_rdr my_rdr);
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 int after__wrk(evt_tls_t *c, void *buf);
