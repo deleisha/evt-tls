@@ -54,7 +54,8 @@ void on_connect(evt_tls_t *tls, int status)
 }
 
 //test nio_handler
-int test_nio_hdlr(evt_tls_t *c, void *buf, int sz)
+//int test_net_rdr(test_tls_t *stream, void *bfr, int sz )
+int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
 {
     //write to test data as simulation of network write
     memset(&test_data, 0, sizeof(test_data));
@@ -64,15 +65,14 @@ int test_nio_hdlr(evt_tls_t *c, void *buf, int sz)
     return 0;
 }
 
-int process_recv_data(test_tls_t *stream )
+int test_net_rdr(test_tls_t *stream, void *bfr, int sz )
 {
     int r = 0;
     if ( test_data.stalled ) {
 	return r;
     }
     test_data.stalled = 1;
-    r = evt_tls_feed_data(stream->endpts, test_data.data, test_data.sz); 
-    //process_recv_data(stream->peer);
+    r = evt_tls_feed_data(stream->endpts, bfr, sz); 
     return r;
 }
 
@@ -116,7 +116,7 @@ int main()
 
 
     assert(tls.writer == NULL);
-    evt_ctx_set_writer(&tls, test_nio_hdlr);
+    evt_ctx_set_writer(&tls, test_net_wrtr);
     assert(tls.writer != NULL);
 
     test_tls_t *clnt_hdl = malloc(sizeof *clnt_hdl);
@@ -136,16 +136,7 @@ int main()
     clnt_hdl->peer = svc_hdl;
 
     test_tls_connect(clnt_hdl, on_connect);
-    //client has sent some data to server, process it now
-    process_recv_data(svc_hdl);
     test_tls_accept(svc_hdl, on_accept);
-//    //server has responded
-//    process_recv_data(clnt_hdl);
-    //continue the handshake
-//    process_recv_data(svc_hdl);
-//    process_recv_data(clnt_hdl);
-//    process_recv_data(svc_hdl);
-//    process_recv_data(clnt_hdl);
 
         
     free(clnt_hdl);
