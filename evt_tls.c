@@ -165,21 +165,17 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
 
     //if handshake is not complete, do it again
     if (!SSL_is_init_finished(c->ssl)) {
-	rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
+	rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
     }
     else {
-//	char txt[16*1024] = {0};
-	char *txt = NULL;
-//	//rv = SSL_read(c->ssl, txt, sizeof(txt));
-//	int sz = sizeof(txt);
-	rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, NULL);
-//	printf("%s", txt);
+	rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
     }
     return rv;
 }
 
 int after__wrk(evt_tls_t *c, void *buf)
 {
+    assert( c != NULL);
     int pending = BIO_pending(c->app_bio_);
     if ( !(pending > 0) )
 	return 0;
@@ -188,12 +184,12 @@ int after__wrk(evt_tls_t *c, void *buf)
     assert(p == pending);
 
     if ( c->writer) {
-	    c->writer(c, buf, p);
+        c->writer(c, buf, p);
     }
     return p;
 }
 
-int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
+int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 {
     int r = 0;
     int bytes = 0;
@@ -223,24 +219,21 @@ int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
             if ( r > 0 ) {
                 if( c->allocator) {
                     assert(c->rd_cb != NULL);
+		    //XXX : test feasibility for removing the allocator
                     c->allocator(c, r, app_data);
 		    app_data = malloc(r);
 		    memcpy(app_data, tbuf, r);
                     c->rd_cb(c, app_data, r);
                 }
-
-		//adhoc code, XXX remove later
-		//memcpy(buf, tbuf, r);
-
             }
             break;
 	}
 
 	case EVT_TLS_OP_WRITE: {
-	   r = SSL_write(c->ssl, buf, *sz);
-	   bytes = after__wrk(c, tbuf);
+           r = SSL_write(c->ssl, buf, sz);
+           bytes = after__wrk(c, tbuf);
 	   if ( r > 0 ) {
-	       if ( c->write_cb) {
+               if ( c->write_cb) {
                    c->write_cb(c, r);
                }
            }
@@ -255,9 +248,9 @@ int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
             break;
 	}
 
-	default:
-	assert( 0 && "Unsupported operation");
-	break;
+        default:
+        assert( 0 && "Unsupported operation");
+        break;
     }
     return r;
 }
@@ -266,7 +259,7 @@ int evt_tls_connect(evt_tls_t *con, evt_conn_cb on_connect)
 {
     con->connect_cb = on_connect;
     SSL_set_connect_state(con->ssl);
-    return evt__tls__op(con, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
+    return evt__tls__op(con, EVT_TLS_OP_HANDSHAKE, NULL, 0);
 }
 
 int evt_tls_accept( evt_tls_t *svc, evt_accept_cb cb)
@@ -274,15 +267,11 @@ int evt_tls_accept( evt_tls_t *svc, evt_accept_cb cb)
     assert(svc != NULL);
     SSL_set_accept_state(svc->ssl);
     svc->accept_cb = cb;
-    
-    //assert(svc->rdr != NULL && "You need to set the network reader first");
-    //svc->rdr(svc, bfr, sz);
-
-    //return evt__tls__op(svc, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
+    return 0;
 }
 
 
-int evt_tls_write(evt_tls_t *c, void *msg, int *str_len, evt_write_cb on_write)
+int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
 {
     c->write_cb = on_write;
     return evt__tls__op(c, EVT_TLS_OP_WRITE, msg, str_len);

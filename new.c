@@ -7,7 +7,6 @@ typedef struct test_tls_s test_tls_t;
 
 struct test_tls_s {
     evt_tls_t *endpts;
-    test_tls_t *peer;
 };
 
 int test_tls_init(test_tls_t *tst_tls, evt_ctx_t *ctx)
@@ -27,22 +26,19 @@ void allok(evt_tls_t *tls, int sz, void *buf)
     assert(buf != NULL);
 }
 
-void on_read( evt_tls_t *tls, void *buf, int sz);
+void on_read( evt_tls_t *tls, char *buf, int sz);
 void on_write(evt_tls_t *tls, int status)
 {
     assert(status > 0);
     printf("++++++++ On_write called ++++++++\n");
     evt_tls_read( tls, allok, on_read);
-
 }
 
-void on_read( evt_tls_t *tls, void *buf, int sz)
+void on_read( evt_tls_t *tls, char *buf, int sz)
 {
     printf(" +++++++++ On_read called ++++++++\n");
     printf("%s", (char*)buf);
-    evt_tls_write(tls, buf, &sz, on_write);
-
-
+    evt_tls_write(tls, buf, sz, on_write);
 }
 
 void on_connect(evt_tls_t *tls, int status)
@@ -52,7 +48,7 @@ void on_connect(evt_tls_t *tls, int status)
     if ( status ) {
 	char msg[] = "Hello from event based tls engine\n";
 	int str_len = sizeof(msg);
-	r =  evt_tls_write(tls, msg, &str_len, on_write);
+	r =  evt_tls_write(tls, msg, str_len, on_write);
 
     }
 }
@@ -132,12 +128,9 @@ int main()
     assert(svc_hdl != 0);
     svc_hdl->endpts = svc;
 
-    svc_hdl->peer = clnt_hdl;
-    clnt_hdl->peer = svc_hdl;
-
     test_tls_connect(clnt_hdl, on_connect);
     test_tls_accept(svc_hdl, on_accept);
-    //server reads the data
+    //handshake
     test_net_rdr( svc_hdl);
     test_net_rdr( clnt_hdl);
     test_net_rdr( svc_hdl);
