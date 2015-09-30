@@ -6,11 +6,14 @@
 typedef struct test_tls_s test_tls_t;
 
 struct test_tls_s {
-    evt_tls_t *endpts;
+    evt_tls_t *endpt;
 };
 
 int test_tls_init(test_tls_t *tst_tls, evt_ctx_t *ctx)
 {
+    evt_tls_t *t = getSSL(ctx);
+    assert(t != NULL);
+    tst_tls->endpt = t;
     return 0;
 }
 
@@ -71,13 +74,13 @@ int test_net_rdr(test_tls_t *stream )
 	return r;
     }
     test_data.stalled = 1;
-    r = evt_tls_feed_data(stream->endpts, test_data.data, test_data.sz); 
+    r = evt_tls_feed_data(stream->endpt, test_data.data, test_data.sz); 
     return r;
 }
 
 int test_tls_connect(test_tls_t *t, evt_conn_cb on_connect)
 {
-    return evt_tls_connect(t->endpts, on_connect);
+    return evt_tls_connect(t->endpt, on_connect);
 }
 
 void on_accept(evt_tls_t *svc, int status)
@@ -89,7 +92,7 @@ void on_accept(evt_tls_t *svc, int status)
 
 int test_tls_accept(test_tls_t *tls, evt_accept_cb on_accept)
 {
-    return evt_tls_accept(tls->endpts, on_accept);
+    return evt_tls_accept(tls->endpt, on_accept);
 }
 
 int main()
@@ -115,33 +118,24 @@ int main()
     evt_ctx_set_writer(&tls, test_net_wrtr);
     assert(tls.writer != NULL);
 
-    test_tls_t *clnt_hdl = malloc(sizeof *clnt_hdl);
-    assert(clnt_hdl != 0);
-    evt_tls_t *clnt = getSSL(&tls );
-
-    clnt_hdl->endpts = clnt;
+    test_tls_t clnt_hdl;
+    test_tls_init( &clnt_hdl, &tls);
 
 
-    evt_tls_t *svc = getSSL(&tls);
-    SSL_set_accept_state(svc->ssl);
-    test_tls_t *svc_hdl = malloc(sizeof(test_tls_t));
-    assert(svc_hdl != 0);
-    svc_hdl->endpts = svc;
+    test_tls_t svc_hdl;
+    test_tls_init(&svc_hdl, &tls);
 
-    test_tls_connect(clnt_hdl, on_connect);
-    test_tls_accept(svc_hdl, on_accept);
+    test_tls_connect(&clnt_hdl, on_connect);
+    test_tls_accept(&svc_hdl, on_accept);
     //handshake
-    test_net_rdr( svc_hdl);
-    test_net_rdr( clnt_hdl);
-    test_net_rdr( svc_hdl);
-    test_net_rdr( clnt_hdl);
+    test_net_rdr(& svc_hdl);
+    test_net_rdr( &clnt_hdl);
+    test_net_rdr(& svc_hdl);
+    test_net_rdr( &clnt_hdl);
 
     //test read and write
-    test_net_rdr( svc_hdl);
-    test_net_rdr( clnt_hdl);
+    test_net_rdr( &svc_hdl);
+    test_net_rdr( &clnt_hdl);
 
-
-    free(clnt_hdl);
-    free(svc_hdl);
     return 0;
 }

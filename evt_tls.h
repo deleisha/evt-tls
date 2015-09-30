@@ -97,8 +97,6 @@ void evt_ctx_set_nio(evt_ctx_t *ctx, net_wrtr my_writer, net_rdr my_rdr);
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 int after__wrk(evt_tls_t *c, void *buf);
 int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz);
-void evt_tls_set_nio(evt_tls_t *c, int (*fn)(evt_tls_t *t, void *data, int sz));
-
 
 int evt_tls_connect(evt_tls_t *con, evt_conn_cb cb);
 int evt_tls_accept( evt_tls_t *tls, evt_accept_cb cb);

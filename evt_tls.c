@@ -53,15 +53,6 @@ evt_tls_t *getSSL(evt_ctx_t *d_eng)
      return con;
 }
 
-
-void evt_tls_set_nio(evt_tls_t *c, int (*fn)(evt_tls_t *t, void *data, int sz))
-{
-    assert( c != NULL);
-    c->writer = fn;
-    assert(c->writer != NULL);
-}
-
-
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer)
 {
     assert(ctx != NULL);
