@@ -9,11 +9,18 @@
 
 // 0 - client
 // 1 - server
-int SSL_get_role(const SSL *s)
+// XXX: make this enum
+int evt_tls_get_role(const evt_tls_t *t)
 {
-    return s->server;
+    assert(t != NULL);
+    return t->ssl->server;
 }
 
+void evt_tls_set_role(evt_tls_t *t, int role)
+{
+    assert(t != NULL);
+    t->ssl->server = role;
+}
 
 static void tls_begin(void)
 {
@@ -151,9 +158,8 @@ int after__wrk(evt_tls_t *c, void *buf)
     int p = BIO_read(c->app_bio_, buf, pending);
     assert(p == pending);
 
-    if ( c->writer) {
-        c->writer(c, buf, p);
-    }
+    assert( c->writer != NULL && "You need to set network writer first");
+    c->writer(c, buf, p);
     return p;
 }
 
@@ -169,7 +175,8 @@ int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             r = SSL_do_handshake(c->ssl);
             bytes = after__wrk(c, tbuf);
 	    if  (1 == r) { // XXX handle r == 0, which is shutdown
-		if (!SSL_get_role(c->ssl)) { //client
+
+		if (!evt_tls_get_role(c)) { //client
 		    assert(c->connect_cb != NULL );
 		    c->connect_cb(c, r);
 	        }
@@ -237,7 +244,6 @@ int evt_tls_accept( evt_tls_t *svc, evt_accept_cb cb)
     svc->accept_cb = cb;
     return 0;
 }
-
 
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
 {
