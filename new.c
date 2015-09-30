@@ -103,7 +103,6 @@ int test_tls_accept(test_tls_t *tls, evt_accept_cb on_accept)
 
 int main()
 {
-
     evt_ctx_t tls;
     memset(&tls, 0, sizeof(tls));
     assert(0 == evt_ctx_init(&tls));

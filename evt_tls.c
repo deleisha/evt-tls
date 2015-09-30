@@ -260,7 +260,6 @@ int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read)
     return 0;
 }
 
-
 int evt_close();
 int evt_force_close();
 //clean up calls
