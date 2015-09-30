@@ -62,29 +62,6 @@ void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer)
 
 }
 
-void evt_ctx_set_rdr(evt_ctx_t *ctx, net_rdr my_rdr)
-{
-    assert(ctx != NULL);
-    assert( ctx->rdr == NULL);
-    ctx->rdr = my_rdr;
-    assert( ctx->writer != NULL);
-
-}
-
-void evt_ctx_set_nio(evt_ctx_t *ctx, net_wrtr my_writer, net_rdr my_rdr)
-{
-    assert(ctx != NULL);
-    assert( ctx->writer == NULL);
-    ctx->writer = my_writer;
-    assert( ctx->writer != NULL);
-
-    assert(ctx != NULL);
-    assert( ctx->rdr == NULL);
-    ctx->rdr = my_rdr;
-    assert( ctx->writer != NULL);
-}
-
-
 int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key)
 {
     //SSL_CTX_set_verify(tls->ctx, SSL_VERIFY_NONE, uv__tls_verify_peer);
