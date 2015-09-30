@@ -27,24 +27,28 @@ void allok(evt_tls_t *tls, int sz, void *buf)
     assert(buf != NULL);
 }
 
-void on_read( evt_tls_t *tls, void *buf, int sz)
-{
-    printf("On_read called\n");
-
-}
-
+void on_read( evt_tls_t *tls, void *buf, int sz);
 void on_write(evt_tls_t *tls, int status)
 {
     assert(status > 0);
-    printf("On_write called\n");
-//    evt_tls_read( tls, allok, on_read);
+    printf("++++++++ On_write called ++++++++\n");
+    evt_tls_read( tls, allok, on_read);
 
 }
 
+void on_read( evt_tls_t *tls, void *buf, int sz)
+{
+    printf(" +++++++++ On_read called ++++++++\n");
+    printf("%s", (char*)buf);
+    evt_tls_write(tls, buf, &sz, on_write);
+
+
+}
 
 void on_connect(evt_tls_t *tls, int status)
 {
     int r = 0;
+    printf("++++++++ On_connect called ++++++++\n");
     if ( status ) {
 	char msg[] = "Hello from event based tls engine\n";
 	int str_len = sizeof(msg);
@@ -54,7 +58,6 @@ void on_connect(evt_tls_t *tls, int status)
 }
 
 //test nio_handler
-//int test_net_rdr(test_tls_t *stream, void *bfr, int sz )
 int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
 {
     //write to test data as simulation of network write
@@ -65,14 +68,14 @@ int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
     return 0;
 }
 
-int test_net_rdr(test_tls_t *stream, void *bfr, int sz )
+int test_net_rdr(test_tls_t *stream )
 {
     int r = 0;
     if ( test_data.stalled ) {
 	return r;
     }
     test_data.stalled = 1;
-    r = evt_tls_feed_data(stream->endpts, bfr, sz); 
+    r = evt_tls_feed_data(stream->endpts, test_data.data, test_data.sz); 
     return r;
 }
 
@@ -81,19 +84,16 @@ int test_tls_connect(test_tls_t *t, evt_conn_cb on_connect)
     return evt_tls_connect(t->endpts, on_connect);
 }
 
-
-
 void on_accept(evt_tls_t *svc, int status)
 {
-    printf("On_accept called\n");
+    printf("++++++++ On_accept called ++++++++\n");
+    //read data now
+    evt_tls_read(svc, allok, on_read );
 }
 
 int test_tls_accept(test_tls_t *tls, evt_accept_cb on_accept)
 {
-//    process_recv_data(tls);
     return evt_tls_accept(tls->endpts, on_accept);
-
-    return 0;
 }
 
 int main()
@@ -137,8 +137,17 @@ int main()
 
     test_tls_connect(clnt_hdl, on_connect);
     test_tls_accept(svc_hdl, on_accept);
+    //server reads the data
+    test_net_rdr( svc_hdl);
+    test_net_rdr( clnt_hdl);
+    test_net_rdr( svc_hdl);
+    test_net_rdr( clnt_hdl);
 
-        
+    //test read and write
+    test_net_rdr( svc_hdl);
+    test_net_rdr( clnt_hdl);
+
+
     free(clnt_hdl);
     free(svc_hdl);
     return 0;

@@ -163,18 +163,18 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
     int rv =  BIO_write(c->app_bio_, data, sz);
     assert( rv == sz);
 
-//    //if handshake is not complete, do it again
-//    if (!SSL_is_init_finished(c->ssl)) {
-//	rv = evt__ssl_op(c, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
-//    }
-//    else {
+    //if handshake is not complete, do it again
+    if (!SSL_is_init_finished(c->ssl)) {
+	rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
+    }
+    else {
 //	char txt[16*1024] = {0};
-//	//char *txt = NULL;
+	char *txt = NULL;
 //	//rv = SSL_read(c->ssl, txt, sizeof(txt));
 //	int sz = sizeof(txt);
-//	rv = evt__ssl_op(c, EVT_TLS_OP_READ, txt, NULL);
+	rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, NULL);
 //	printf("%s", txt);
-//    }
+    }
     return rv;
 }
 
@@ -193,11 +193,12 @@ int after__wrk(evt_tls_t *c, void *buf)
     return p;
 }
 
-int evt__ssl_op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
+int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
 {
     int r = 0;
     int bytes = 0;
     char tbuf[16*1024] = {0};
+    char *app_data = NULL;
 
     switch ( op ) {
 	case EVT_TLS_OP_HANDSHAKE: {
@@ -222,13 +223,14 @@ int evt__ssl_op(evt_tls_t *c, enum tls_op_type op, void *buf, int *sz)
             if ( r > 0 ) {
                 if( c->allocator) {
                     assert(c->rd_cb != NULL);
-                    c->allocator(c, r, buf);
-		    memcpy(buf, tbuf, r);
-                    c->rd_cb(c, buf, r);
+                    c->allocator(c, r, app_data);
+		    app_data = malloc(r);
+		    memcpy(app_data, tbuf, r);
+                    c->rd_cb(c, app_data, r);
                 }
 
 		//adhoc code, XXX remove later
-		memcpy(buf, tbuf, r);
+		//memcpy(buf, tbuf, r);
 
             }
             break;
@@ -264,7 +266,7 @@ int evt_tls_connect(evt_tls_t *con, evt_conn_cb on_connect)
 {
     con->connect_cb = on_connect;
     SSL_set_connect_state(con->ssl);
-    return evt__ssl_op(con, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
+    return evt__tls__op(con, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
 }
 
 int evt_tls_accept( evt_tls_t *svc, evt_accept_cb cb)
@@ -272,22 +274,24 @@ int evt_tls_accept( evt_tls_t *svc, evt_accept_cb cb)
     assert(svc != NULL);
     SSL_set_accept_state(svc->ssl);
     svc->accept_cb = cb;
+    
+    //assert(svc->rdr != NULL && "You need to set the network reader first");
+    //svc->rdr(svc, bfr, sz);
 
-    return evt__ssl_op(svc, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
+    //return evt__tls__op(svc, EVT_TLS_OP_HANDSHAKE, NULL, NULL);
 }
 
 
 int evt_tls_write(evt_tls_t *c, void *msg, int *str_len, evt_write_cb on_write)
 {
     c->write_cb = on_write;
-    return evt__ssl_op(c, EVT_TLS_OP_WRITE, msg, str_len);
+    return evt__tls__op(c, EVT_TLS_OP_WRITE, msg, str_len);
 }
 
 // read only register the callback to be made
-int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read )
+int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read)
 {
     assert(c != NULL);
-    char *msg = NULL;
     c->allocator = allok;
     c->rd_cb = on_read;
     return 0;
