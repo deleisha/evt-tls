@@ -9,19 +9,23 @@ struct test_tls_s {
     evt_tls_t *endpt;
 };
 
-int test_tls_init(test_tls_t *tst_tls, evt_ctx_t *ctx)
+struct my_data {
+    char data[16*1024];
+    int sz;
+    int stalled;
+}test_data;
+
+
+int test_tls_init(evt_ctx_t *ctx, test_tls_t *tst_tls)
 {
+    memset( tst_tls, 0, sizeof *tst_tls);
+
     evt_tls_t *t = getSSL(ctx);
     assert(t != NULL);
     tst_tls->endpt = t;
     return 0;
 }
 
-struct my_data {
-    char data[16*1024];
-    int sz;
-    int stalled;
-}test_data;
 
 void allok(evt_tls_t *tls, int sz, void *buf)
 {
@@ -54,9 +58,11 @@ void on_connect(evt_tls_t *tls, int status)
 	r =  evt_tls_write(tls, msg, str_len, on_write);
 
     }
+    else { //handle ssl_shutdown
+    }
 }
 
-//test nio_handler
+//test net writer for the test code
 int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
 {
     //write to test data as simulation of network write
@@ -119,11 +125,12 @@ int main()
     assert(tls.writer != NULL);
 
     test_tls_t clnt_hdl;
-    test_tls_init( &clnt_hdl, &tls);
+    test_tls_init( &tls, &clnt_hdl);
 
 
     test_tls_t svc_hdl;
-    test_tls_init(&svc_hdl, &tls);
+    test_tls_init( &tls, &svc_hdl);
+
 
     test_tls_connect(&clnt_hdl, on_connect);
     test_tls_accept(&svc_hdl, on_accept);
