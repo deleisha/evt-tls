@@ -217,7 +217,9 @@ int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
 	case EVT_TLS_OP_SHUTDOWN: {
             r = SSL_shutdown(c->ssl);
-            if ( r < 0 ) {
+            bytes = after__wrk(c, tbuf);
+	    if ( 0 == r ) {
+                r = SSL_shutdown(c->ssl);
                 bytes = after__wrk(c, tbuf);
             }
             break;
