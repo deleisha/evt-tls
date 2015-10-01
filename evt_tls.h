@@ -23,29 +23,7 @@ typedef void (*evt_read_cb)(evt_tls_t *con, char *buf, int size);
 typedef void (*evt_write_cb)(evt_tls_t *con, int status);
 
 typedef int (*net_wrtr)(evt_tls_t *tls, void *edata, int len);
-typedef int (*net_rdr)(evt_tls_t *tls, void *edata, int len);
 
-
-struct evt_tls_s {
-    BIO     *app_bio_; //Our BIO, All IO should be through this
-
-    SSL     *ssl;
-
-    
-    BIO     *ssl_bio_; //the ssl BIO used only by openSSL
-
-    //network writer used for writing encrypted data
-    net_wrtr writer;
-
-    evt_conn_cb connect_cb;
-    evt_accept_cb accept_cb;
-
-    evt_allocator allocator;
-    evt_read_cb rd_cb;
-    evt_write_cb write_cb;
-
-    QUEUE q;
-};
 
 
 typedef struct evt_ctx_s
@@ -65,8 +43,33 @@ typedef struct evt_ctx_s
     void *live_con[2];
 
     net_wrtr writer;
-    net_rdr  rdr;
 } evt_ctx_t;
+
+struct evt_tls_s {
+    BIO     *app_bio_; //Our BIO, All IO should be through this
+
+    SSL     *ssl;
+
+    
+    BIO     *ssl_bio_; //the ssl BIO used only by openSSL
+
+    //network writer used for writing encrypted data
+    net_wrtr writer;
+
+    evt_conn_cb connect_cb;
+    evt_accept_cb accept_cb;
+
+    evt_allocator allocator;
+    evt_read_cb rd_cb;
+    evt_write_cb write_cb;
+
+    //back handle to parent
+    evt_ctx_t *evt_ctx;
+
+    QUEUE q;
+};
+
+
 
 
 //supported TLS operation

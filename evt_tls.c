@@ -18,8 +18,13 @@ int evt_tls_get_role(const evt_tls_t *t)
 
 void evt_tls_set_role(evt_tls_t *t, int role)
 {
-    assert(t != NULL);
-    t->ssl->server = role;
+    assert(t != NULL && (role  == 0 || role == 1));
+    if ( role == 1 ) {
+        SSL_set_accept_state(t->ssl);
+    }
+    else {
+        SSL_set_connect_state(t->ssl);
+    }
 }
 
 static void tls_begin(void)
@@ -34,39 +39,38 @@ static void tls_begin(void)
 
 evt_tls_t *getSSL(evt_ctx_t *d_eng)
 {
-     evt_tls_t *con = malloc(sizeof(evt_tls_t));
-     if ( !con ) {
-	 return NULL;
-     }
-     memset( con, 0, sizeof *con);
+    evt_tls_t *con = malloc(sizeof(evt_tls_t));
+    if ( !con ) {
+        return NULL;
+    }
+    memset( con, 0, sizeof *con);
 
-     SSL *ssl  = SSL_new(d_eng->ctx);
+    SSL *ssl  = SSL_new(d_eng->ctx);
 
-     if ( !ssl ) {
-	 return NULL;
-     }
-     con->ssl = ssl;
+    if ( !ssl ) {
+        return NULL;
+    }
+    con->ssl = ssl;
 
-     //use default buf size for now.
-     BIO_new_bio_pair(&(con->ssl_bio_), 0, &(con->app_bio_), 0);
+    //use default buf size for now.
+    BIO_new_bio_pair(&(con->ssl_bio_), 0, &(con->app_bio_), 0);
 
-     SSL_set_bio(con->ssl, con->ssl_bio_, con->ssl_bio_);
+    SSL_set_bio(con->ssl, con->ssl_bio_, con->ssl_bio_);
 
-     QUEUE_INIT(&(con->q));
-     QUEUE_INSERT_TAIL(&(d_eng->live_con), &(con->q));
+    QUEUE_INIT(&(con->q));
+    QUEUE_INSERT_TAIL(&(d_eng->live_con), &(con->q));
 
-     con->writer = d_eng->writer;
+    con->writer = d_eng->writer;
+    con->evt_ctx = d_eng;
 
-     return con;
+    return con;
 }
 
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer)
 {
-    assert(ctx != NULL);
     assert( ctx->writer == NULL);
     ctx->writer = my_writer;
     assert( ctx->writer != NULL);
-
 }
 
 int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key)
@@ -93,7 +97,6 @@ int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key)
     return 0;
 }
 
-
 int evt_ctx_init(evt_ctx_t *tls)
 {
     tls_begin();
@@ -103,14 +106,14 @@ int evt_ctx_init(evt_ctx_t *tls)
     if(!tls->ctx) {
         return ENOMEM;
     }
-    
+
     long options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
     SSL_CTX_set_options(tls->ctx, options);
 
     SSL_CTX_set_mode(tls->ctx, SSL_MODE_AUTO_RETRY |
-         SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER       |
-         SSL_MODE_ENABLE_PARTIAL_WRITE             |
-         SSL_MODE_RELEASE_BUFFERS
+        SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER        |
+        SSL_MODE_ENABLE_PARTIAL_WRITE              |
+        SSL_MODE_RELEASE_BUFFERS
     );
 
     tls->cert_set = 0;
@@ -119,7 +122,6 @@ int evt_ctx_init(evt_ctx_t *tls)
     tls->writer = NULL;
 
     QUEUE_INIT(&(tls->live_con));
-
     return 0;
 }
 
@@ -140,10 +142,10 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
 
     //if handshake is not complete, do it again
     if (!SSL_is_init_finished(c->ssl)) {
-	rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
+        rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
     }
     else {
-	rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
+        rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
     }
     return rv;
 }
@@ -153,7 +155,7 @@ int after__wrk(evt_tls_t *c, void *buf)
     assert( c != NULL);
     int pending = BIO_pending(c->app_bio_);
     if ( !(pending > 0) )
-	return 0;
+        return 0;
 
     int p = BIO_read(c->app_bio_, buf, pending);
     assert(p == pending);
@@ -171,63 +173,66 @@ int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     char *app_data = NULL;
 
     switch ( op ) {
-	case EVT_TLS_OP_HANDSHAKE: {
+        case EVT_TLS_OP_HANDSHAKE:
+        {
             r = SSL_do_handshake(c->ssl);
             bytes = after__wrk(c, tbuf);
-	    if  (1 == r) { // XXX handle r == 0, which is shutdown
-
-		if (!evt_tls_get_role(c)) { //client
-		    assert(c->connect_cb != NULL );
-		    c->connect_cb(c, r);
-	        }
-		else { //server
-		    assert(c->accept_cb != NULL );
+            if  (1 == r) { // XXX handle r == 0, which is shutdown
+                if (!evt_tls_get_role(c)) { //client
+                    assert(c->connect_cb != NULL );
+                    c->connect_cb(c, r);
+                }
+                else { //server
+                    assert(c->accept_cb != NULL );
                     c->accept_cb(c, r);
-		}
-	    }
-	    break;
+                }
+            }
+            break;
         }
 
-        case EVT_TLS_OP_READ: {
+        case EVT_TLS_OP_READ:
+        {
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
             bytes = after__wrk(c, tbuf);
             if ( r > 0 ) {
                 if( c->allocator) {
                     assert(c->rd_cb != NULL);
-		    //XXX : test feasibility for removing the allocator
+                    //XXX : test feasibility for removing the allocator
                     c->allocator(c, r, app_data);
-		    app_data = malloc(r);
-		    memcpy(app_data, tbuf, r);
+                    app_data = malloc(r);
+                    memcpy(app_data, tbuf, r);
                     c->rd_cb(c, app_data, r);
                 }
             }
             break;
-	}
-
-	case EVT_TLS_OP_WRITE: {
-           r = SSL_write(c->ssl, buf, sz);
-           bytes = after__wrk(c, tbuf);
-	   if ( r > 0 ) {
-               if ( c->write_cb) {
-                   c->write_cb(c, r);
-               }
-           }
-	   break;
         }
 
-	case EVT_TLS_OP_SHUTDOWN: {
+        case EVT_TLS_OP_WRITE:
+        {
+            r = SSL_write(c->ssl, buf, sz);
+            bytes = after__wrk(c, tbuf);
+            if ( r > 0 ) {
+                if ( c->write_cb) {
+                    c->write_cb(c, r);
+                }
+            }
+            break;
+        }
+
+        case EVT_TLS_OP_SHUTDOWN:
+        {
             r = SSL_shutdown(c->ssl);
             bytes = after__wrk(c, tbuf);
-	    if ( 0 == r ) {
+            if ( 0 == r ) {
                 r = SSL_shutdown(c->ssl);
                 bytes = after__wrk(c, tbuf);
             }
             break;
-	}
+        }
 
         default:
-        assert( 0 && "Unsupported operation");
-        break;
+            assert( 0 && "Unsupported operation");
+            break;
     }
     return r;
 }
