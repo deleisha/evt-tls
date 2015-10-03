@@ -227,6 +227,9 @@ int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
                 r = SSL_shutdown(c->ssl);
                 bytes = after__wrk(c, tbuf);
             }
+            if ( 1 == r  && c->cls_cb) {
+                c->cls_cb(c, r);
+            }
             break;
         }
 
@@ -267,6 +270,11 @@ int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read)
     return 0;
 }
 
-int evt_close();
+int evt_tls_close(evt_tls_t *tls, evt_close_cb cls_cb)
+{
+    assert(tls != NULL);
+    tls->cls_cb = cls_cb;
+    return evt__tls__op(tls, EVT_TLS_OP_SHUTDOWN, NULL, 0);
+}
 int evt_force_close();
 //clean up calls

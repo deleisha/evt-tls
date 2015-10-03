@@ -48,6 +48,17 @@ void on_read( evt_tls_t *tls, char *buf, int sz)
     evt_tls_write(tls, buf, sz, on_write);
 }
 
+void cls(evt_tls_t *evt, int status)
+{
+    printf("++++++++ On_close_cb called ++++++++\n");
+
+}
+
+int test_tls_close(test_tls_t *t, evt_close_cb cls)
+{
+    return evt_tls_close(t->endpt, cls);
+}
+
 void on_connect(evt_tls_t *tls, int status)
 {
     int r = 0;
@@ -59,6 +70,7 @@ void on_connect(evt_tls_t *tls, int status)
 
     }
     else { //handle ssl_shutdown
+        test_tls_close((test_tls_t*)tls, cls);
     }
 }
 
@@ -93,13 +105,19 @@ void on_accept(evt_tls_t *svc, int status)
 {
     printf("++++++++ On_accept called ++++++++\n");
     //read data now
-    evt_tls_read(svc, allok, on_read );
+    if ( status > 0 ) {
+        evt_tls_read(svc, allok, on_read );
+    }
+    else {
+        test_tls_close((test_tls_t*)svc, cls);
+    }
 }
 
 int test_tls_accept(test_tls_t *tls, evt_accept_cb on_accept)
 {
     return evt_tls_accept(tls->endpt, on_accept);
 }
+
 
 int main()
 {
@@ -142,6 +160,9 @@ int main()
     //test read and write
     test_net_rdr( &svc_hdl);
     test_net_rdr( &clnt_hdl);
+
+    //test close
+    test_tls_close(&svc_hdl, cls);
 
     return 0;
 }

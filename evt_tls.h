@@ -21,6 +21,8 @@ typedef void (*evt_accept_cb)(evt_tls_t *con, int status);
 typedef void (*evt_allocator)(evt_tls_t *con, int size, void *buf);
 typedef void (*evt_read_cb)(evt_tls_t *con, char *buf, int size);
 typedef void (*evt_write_cb)(evt_tls_t *con, int status);
+//XXX: should we remove status param
+typedef void (*evt_close_cb)(evt_tls_t *con, int status);
 
 typedef int (*net_wrtr)(evt_tls_t *tls, void *edata, int len);
 
@@ -49,24 +51,24 @@ struct evt_tls_s {
     BIO     *app_bio_; //Our BIO, All IO should be through this
 
     SSL     *ssl;
-
     
-    BIO     *ssl_bio_; //the ssl BIO used only by openSSL
-
     //network writer used for writing encrypted data
     net_wrtr writer;
+
+    evt_allocator allocator;
 
     evt_conn_cb connect_cb;
     evt_accept_cb accept_cb;
 
-    evt_allocator allocator;
     evt_read_cb rd_cb;
     evt_write_cb write_cb;
+    evt_close_cb cls_cb;
 
     //back handle to parent
     evt_ctx_t *evt_ctx;
 
     QUEUE q;
+    BIO     *ssl_bio_; //the ssl BIO used only by openSSL
 };
 
 
@@ -103,6 +105,7 @@ int evt_tls_connect(evt_tls_t *con, evt_conn_cb cb);
 int evt_tls_accept( evt_tls_t *tls, evt_accept_cb cb);
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
 int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read );
+int evt_tls_close(evt_tls_t *c, evt_close_cb cls);
 
 
 #ifdef __cplusplus 
