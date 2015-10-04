@@ -228,11 +228,11 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
     assert( rv == sz);
 
     //if handshake is not complete, do it again
-    if (!SSL_is_init_finished(c->ssl)) {
-        rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
+    if (SSL_is_init_finished(c->ssl)) {
+        rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
     }
     else {
-        rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
+        rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
     }
     return rv;
 }
