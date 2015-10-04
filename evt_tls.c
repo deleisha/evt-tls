@@ -2,7 +2,7 @@
 #include "evt_tls.h"
 
 
-//openssl 1.0.2 and later has SSL_is_server API to check 
+//openssl 1.0.2 and later has SSL_is_server API to check
 //if the ssl connection is server or not
 // Some older versions does not have this function.
 // Hence this function is introduced.
@@ -37,7 +37,7 @@ static void tls_begin(void)
 }
 
 
-evt_tls_t *getSSL(evt_ctx_t *d_eng)
+evt_tls_t *get_tls(evt_ctx_t *d_eng)
 {
     evt_tls_t *con = malloc(sizeof(evt_tls_t));
     if ( !con ) {
@@ -103,7 +103,7 @@ int evt_ctx_init(evt_ctx_t *tls)
 
     //Currently we support only TLS, No DTLS
     tls->ctx = SSL_CTX_new(SSLv23_method());
-    if(!tls->ctx) {
+    if ( !tls->ctx ) {
         return ENOMEM;
     }
 

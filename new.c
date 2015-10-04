@@ -20,7 +20,7 @@ int test_tls_init(evt_ctx_t *ctx, test_tls_t *tst_tls)
 {
     memset( tst_tls, 0, sizeof *tst_tls);
 
-    evt_tls_t *t = getSSL(ctx);
+    evt_tls_t *t = get_tls(ctx);
     assert(t != NULL);
     tst_tls->endpt = t;
     return 0;
