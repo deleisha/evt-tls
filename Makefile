@@ -1,4 +1,4 @@
-all: clean evt gen_cert test_uv_tls
+all: clean evt gen_cert
 evt:
 	clang -g -Wall -o $@ new.c evt_tls.c -lssl -lcrypto -lrt
 

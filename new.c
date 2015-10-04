@@ -27,7 +27,7 @@ int test_tls_init(evt_ctx_t *ctx, test_tls_t *tst_tls)
 }
 
 
-void allok(evt_tls_t *tls, int sz, void *buf)
+void allok(evt_tls_t *tls, size_t sz, void *buf)
 {
     buf = malloc(sz);
     assert(buf != NULL);

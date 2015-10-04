@@ -2,10 +2,6 @@
 #include "evt_tls.h"
 
 
-//openssl 1.0.2 and later has SSL_is_server API to check
-//if the ssl connection is server or not
-// Some older versions does not have this function.
-// Hence this function is introduced.
 
 // 0 - client
 // 1 - server
@@ -135,22 +131,8 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
     return t->key_set;
 }
 
-int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
-{
-    int rv =  BIO_write(c->app_bio_, data, sz);
-    assert( rv == sz);
 
-    //if handshake is not complete, do it again
-    if (!SSL_is_init_finished(c->ssl)) {
-        rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
-    }
-    else {
-        rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
-    }
-    return rv;
-}
-
-int after__wrk(evt_tls_t *c, void *buf)
+static int after__wrk(evt_tls_t *c, void *buf)
 {
     assert( c != NULL);
     int pending = BIO_pending(c->app_bio_);
@@ -165,7 +147,7 @@ int after__wrk(evt_tls_t *c, void *buf)
     return p;
 }
 
-int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
+static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 {
     int r = 0;
     int bytes = 0;
@@ -239,6 +221,22 @@ int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     }
     return r;
 }
+
+int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
+{
+    int rv =  BIO_write(c->app_bio_, data, sz);
+    assert( rv == sz);
+
+    //if handshake is not complete, do it again
+    if (!SSL_is_init_finished(c->ssl)) {
+        rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
+    }
+    else {
+        rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
+    }
+    return rv;
+}
+
 
 int evt_tls_connect(evt_tls_t *con, evt_conn_cb on_connect)
 {
