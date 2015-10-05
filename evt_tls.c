@@ -180,7 +180,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
                 if( c->allocator) {
                     assert(c->rd_cb != NULL);
                     //XXX : test feasibility for removing the allocator
-                    c->allocator(c, r, app_data);
+                    //c->allocator(c, r, app_data);
                     app_data = malloc(r);
                     memcpy(app_data, tbuf, r);
                     c->rd_cb(c, app_data, r);

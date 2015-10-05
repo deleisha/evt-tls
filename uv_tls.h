@@ -6,6 +6,14 @@ extern "C" {
 #endif
 #include "evt_tls.h"
 #include "libuv/include/uv.h"
+
+//copied gladly from libuv
+#define CONTAINER_OF(ptr, type, member)                  \
+  ((type *) ((char *) (ptr) - offsetof(type, member)))
+
+
+
+
 typedef struct uv_tls_s uv_tls_t;
 
 struct uv_tls_s {
