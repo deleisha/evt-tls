@@ -9,16 +9,26 @@ void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
     assert(buf->base != NULL && "Memory allocation failed");
 }
 
+void on_close(evt_tls_t *t, int status)
+{
+    printf("On close called\n");
+}
+int uv_tls_close(uv_tls_t *strm, evt_close_cb cb)
+{
+    return evt_tls_close(strm->tls, on_close);
+}
+
+
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 {
+    uv_tls_t *parent = CONTAINER_OF(stream, uv_tls_t, skt);
     if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
-            //uv_close(clnt, on_close);
+            uv_tls_close(parent, on_close);
         }
         return;
     }
 
-    uv_tls_t *parent = CONTAINER_OF(stream, uv_tls_t, skt);
     assert( parent != NULL);
 
     evt_tls_feed_data(parent->tls, data->base, nrd);
@@ -28,7 +38,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 
 void on_write(evt_tls_t *tls, int status)
 {
-    printf("On write called\n");
+    uv_tls_close((uv_tls_t*)tls->data, on_close);
 }
 
 int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
@@ -36,10 +46,8 @@ int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
     return evt_tls_write(stream->tls, buf->base, buf->len, cb);
 }
 
-
 void evt_on_rd(evt_tls_t *t, char *bfr, int sz)
 {
-    printf("data received = %s\n", bfr);
     uv_buf_t data;
     data.base = bfr;
     data.len = sz;
@@ -55,11 +63,12 @@ int uv_tls_read(uv_tls_t *t, uv_alloc_cb alloc_cb, evt_read_cb cb)
 
 void on_hd_complete( evt_tls_t *t, int status)
 {
+    uv_tls_t *ut = (uv_tls_t*)t->data;
     if ( status == 1) {
-        uv_tls_read(t->data, alloc_cb, evt_on_rd);
+        uv_tls_read(ut, alloc_cb, evt_on_rd);
     }
     else {
-        //uv_tls_close()
+        uv_tls_close(ut, on_close);
     }
 }
 
