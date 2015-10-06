@@ -11,7 +11,7 @@ void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 {
-    if ( nrd <= 0) {
+    if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
             //uv_close(clnt, on_close);
         }
@@ -20,16 +20,12 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 
     uv_tls_t *parent = CONTAINER_OF(stream, uv_tls_t, skt);
     assert( parent != NULL);
+
     evt_tls_feed_data(parent->tls, data->base, nrd);
+
+    free(data->base);
 }
 
-int uv_tls_accept(uv_tls_t *t, evt_accept_cb cb)
-{
-    evt_tls_t *tls = t->tls;
-    evt_tls_set_role(tls, 1);
-    tls->accept_cb = cb;
-    return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
-}
 
 void evt_on_rd(evt_tls_t *t, char *bfr, int sz)
 {
@@ -51,6 +47,15 @@ void on_hd_complete( evt_tls_t *t, int status)
         //uv_tls_close()
     }
 }
+
+int uv_tls_accept(uv_tls_t *t, evt_accept_cb cb)
+{
+    evt_tls_t *tls = t->tls;
+    evt_tls_set_role(tls, 1);
+    tls->accept_cb = cb;
+    return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
+}
+
 
 void on_connect_cb(uv_stream_t *server, int status)
 {
