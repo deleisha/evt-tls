@@ -26,10 +26,25 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
     free(data->base);
 }
 
+void on_write(evt_tls_t *tls, int status)
+{
+    printf("On write called\n");
+}
+
+int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
+{
+    return evt_tls_write(stream->tls, buf->base, buf->len, cb);
+}
+
 
 void evt_on_rd(evt_tls_t *t, char *bfr, int sz)
 {
     printf("data received = %s\n", bfr);
+    uv_buf_t data;
+    data.base = bfr;
+    data.len = sz;
+
+    uv_tls_write((uv_tls_t*)t->data, &data, on_write);
 }
 
 
