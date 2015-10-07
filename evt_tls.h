@@ -104,6 +104,7 @@ int evt_tls_accept( evt_tls_t *tls, evt_accept_cb cb);
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
 int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read );
 int evt_tls_close(evt_tls_t *c, evt_close_cb cls);
+int evt_tls_delete(evt_tls_t *tls);
 
 
 //openssl 1.0.2 and later has SSL_is_server API to check

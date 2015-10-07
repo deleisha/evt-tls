@@ -265,8 +265,24 @@ int evt_tls_close(evt_tls_t *tls, evt_close_cb cls_cb)
     return evt__tls__op(tls, EVT_TLS_OP_SHUTDOWN, NULL, 0);
 }
 
-int evt_tls_force_close(evt_tls_t *tls, evt_close_cb cls_cb)
-{
-}
+//need impl
+int evt_tls_force_close(evt_tls_t *tls, evt_close_cb cls_cb);
 
+
+
+int evt_tls_delete(evt_tls_t *tls)
+{
+    BIO_free(tls->app_bio_);
+    tls->app_bio_ = NULL;
+
+    SSL_free(tls->ssl);
+    tls->ssl = NULL;
+
+    QUEUE_REMOVE( &(tls->q));
+    QUEUE_INIT( &(tls->q) );
+
+    free(tls);
+    tls = NULL;
+    return 0;
+}
 //clean up calls

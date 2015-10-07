@@ -9,13 +9,22 @@ void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
     assert(buf->base != NULL && "Memory allocation failed");
 }
 
+void on_uv_close(uv_handle_t *hdl)
+{
+    free(hdl);
+
+}
+
 void on_close(evt_tls_t *t, int status)
 {
     printf("On close called\n");
+    uv_tls_t *ut = (uv_tls_t*)t->data;
+    evt_tls_delete(t);
+    uv_close( (uv_handle_t*)&(ut->skt), on_uv_close);
 }
 int uv_tls_close(uv_tls_t *strm, evt_close_cb cb)
 {
-    return evt_tls_close(strm->tls, on_close);
+    return evt_tls_close(strm->tls, cb);
 }
 
 
@@ -26,6 +35,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
         if( nrd == UV_EOF) {
             uv_tls_close(parent, on_close);
         }
+        free(data->base);
         return;
     }
 
@@ -53,6 +63,8 @@ void evt_on_rd(evt_tls_t *t, char *bfr, int sz)
     data.len = sz;
 
     uv_tls_write((uv_tls_t*)t->data, &data, on_write);
+    free(bfr);
+    bfr = 0;
 }
 
 
