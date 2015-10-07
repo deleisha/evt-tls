@@ -12,21 +12,19 @@ void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 void on_uv_close(uv_handle_t *hdl)
 {
     free(hdl);
-
 }
 
 void on_close(evt_tls_t *t, int status)
 {
-    printf("On close called\n");
     uv_tls_t *ut = (uv_tls_t*)t->data;
     evt_tls_delete(t);
     uv_close( (uv_handle_t*)&(ut->skt), on_uv_close);
 }
+
 int uv_tls_close(uv_tls_t *strm, evt_close_cb cb)
 {
     return evt_tls_close(strm->tls, cb);
 }
-
 
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 {
