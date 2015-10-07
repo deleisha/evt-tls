@@ -15,7 +15,7 @@ int evt_tls_get_role(const evt_tls_t *t)
 void evt_tls_set_role(evt_tls_t *t, int role)
 {
     assert(t != NULL && (role  == 0 || role == 1));
-    if ( role == 1 ) {
+    if ( 1 == role ) {
         SSL_set_accept_state(t->ssl);
     }
     else {
@@ -155,8 +155,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     char *app_data = NULL;
 
     switch ( op ) {
-        case EVT_TLS_OP_HANDSHAKE:
-        {
+        case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(c->ssl);
             bytes = after__wrk(c, tbuf);
             if  (1 == r) { // XXX handle r == 0, which is shutdown
@@ -172,8 +171,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             break;
         }
 
-        case EVT_TLS_OP_READ:
-        {
+        case EVT_TLS_OP_READ: {
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
             bytes = after__wrk(c, tbuf);
             if ( r > 0 ) {
@@ -189,27 +187,19 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             break;
         }
 
-        case EVT_TLS_OP_WRITE:
-        {
+        case EVT_TLS_OP_WRITE: {
             r = SSL_write(c->ssl, buf, sz);
             bytes = after__wrk(c, tbuf);
-            if ( r > 0 ) {
-                if ( c->write_cb) {
+            if ( r > 0  &&  c->write_cb) {
                     c->write_cb(c, r);
-                }
             }
             break;
         }
 
-        case EVT_TLS_OP_SHUTDOWN:
-        {
+        case EVT_TLS_OP_SHUTDOWN: {
             r = SSL_shutdown(c->ssl);
             bytes = after__wrk(c, tbuf);
-            if ( 0 == r ) {
-                r = SSL_shutdown(c->ssl);
-                bytes = after__wrk(c, tbuf);
-            }
-            if ( 1 == r  && c->cls_cb) {
+            if ( (1 == r)  && c->cls_cb) {
                 c->cls_cb(c, r);
             }
             break;
@@ -269,10 +259,14 @@ int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read)
 }
 
 int evt_tls_close(evt_tls_t *tls, evt_close_cb cls_cb)
-{
+{    
     assert(tls != NULL);
     tls->cls_cb = cls_cb;
     return evt__tls__op(tls, EVT_TLS_OP_SHUTDOWN, NULL, 0);
 }
-int evt_force_close();
+
+int evt_tls_force_close(evt_tls_t *tls, evt_close_cb cls_cb)
+{
+}
+
 //clean up calls

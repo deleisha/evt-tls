@@ -64,7 +64,7 @@ int uv_tls_read(uv_tls_t *t, uv_alloc_cb alloc_cb, evt_read_cb cb)
 void on_hd_complete( evt_tls_t *t, int status)
 {
     uv_tls_t *ut = (uv_tls_t*)t->data;
-    if ( status == 1) {
+    if ( 1 == status ) {
         uv_tls_read(ut, alloc_cb, evt_on_rd);
     }
     else {
