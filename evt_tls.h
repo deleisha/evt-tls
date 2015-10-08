@@ -16,7 +16,6 @@ typedef struct evt_tls_s evt_tls_t;
 
 typedef void (*evt_conn_cb)(evt_tls_t *con, int status);
 typedef void (*evt_accept_cb)(evt_tls_t *con, int status);
-typedef void (*evt_allocator)(evt_tls_t *con, size_t sz, void *buf);
 typedef void (*evt_read_cb)(evt_tls_t *con, char *buf, int size);
 typedef void (*evt_write_cb)(evt_tls_t *con, int status);
 //XXX: should we remove status param
@@ -55,7 +54,6 @@ struct evt_tls_s {
     //network writer used for writing encrypted data
     net_wrtr writer;
 
-    evt_allocator allocator;
 
     //callbacks
     evt_conn_cb connect_cb;
@@ -101,7 +99,7 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 int evt_tls_connect(evt_tls_t *con, evt_conn_cb cb);
 int evt_tls_accept( evt_tls_t *tls, evt_accept_cb cb);
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
-int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read );
+int evt_tls_read(evt_tls_t *c, evt_read_cb on_read );
 int evt_tls_close(evt_tls_t *c, evt_close_cb cls);
 int evt_tls_delete(evt_tls_t *tls);
 

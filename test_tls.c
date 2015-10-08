@@ -58,14 +58,12 @@ void evt_on_rd(evt_tls_t *t, char *bfr, int sz)
     data.len = sz;
 
     uv_tls_write((uv_tls_t*)t->data, &data, on_write);
-    free(bfr);
-    bfr = 0;
 }
 
 
 int uv_tls_read(uv_tls_t *t, uv_alloc_cb alloc_cb, evt_read_cb cb)
 {
-    return evt_tls_read(t->tls, alloc_cb, cb);
+    return evt_tls_read(t->tls, cb);
 }
 
 void on_hd_complete( evt_tls_t *t, int status)

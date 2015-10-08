@@ -15,3 +15,4 @@ new:
 
 clean:
 	-rm evt
+	-rm new

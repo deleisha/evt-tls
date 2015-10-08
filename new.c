@@ -26,19 +26,12 @@ int test_tls_init(evt_ctx_t *ctx, test_tls_t *tst_tls)
     return 0;
 }
 
-
-void allok(evt_tls_t *tls, size_t sz, void *buf)
-{
-    buf = malloc(sz);
-    assert(buf != NULL);
-}
-
 void on_read( evt_tls_t *tls, char *buf, int sz);
 void on_write(evt_tls_t *tls, int status)
 {
     assert(status > 0);
     printf("++++++++ On_write called ++++++++\n");
-    evt_tls_read( tls, allok, on_read);
+    evt_tls_read( tls, on_read);
 }
 
 void on_read( evt_tls_t *tls, char *buf, int sz)
@@ -106,7 +99,7 @@ void on_accept(evt_tls_t *svc, int status)
     printf("++++++++ On_accept called ++++++++\n");
     //read data now
     if ( status > 0 ) {
-        evt_tls_read(svc, allok, on_read );
+        evt_tls_read(svc, on_read );
     }
     else {
         test_tls_close((test_tls_t*)svc, cls);

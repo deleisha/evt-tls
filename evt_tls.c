@@ -152,7 +152,6 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     int r = 0;
     int bytes = 0;
     char tbuf[16*1024] = {0};
-    char *app_data = NULL;
 
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
@@ -175,14 +174,8 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
             bytes = after__wrk(c, tbuf);
             if ( r > 0 ) {
-                if( c->allocator) {
-                    assert(c->rd_cb != NULL);
-                    //XXX : test feasibility for removing the allocator
-                    //c->allocator(c, r, app_data);
-                    app_data = malloc(r);
-                    memcpy(app_data, tbuf, r);
-                    c->rd_cb(c, app_data, r);
-                }
+                assert(c->rd_cb != NULL);
+                c->rd_cb(c, tbuf, r);
             }
             break;
         }
@@ -250,10 +243,9 @@ int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
 }
 
 // read only register the callback to be made
-int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read)
+int evt_tls_read(evt_tls_t *c, evt_read_cb on_read)
 {
     assert(c != NULL);
-    c->allocator = allok;
     c->rd_cb = on_read;
     return 0;
 }
