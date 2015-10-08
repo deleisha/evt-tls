@@ -23,6 +23,17 @@ void evt_tls_set_role(evt_tls_t *t, int role)
     }
 }
 
+SSL_CTX *evt_get_SSL_CTX(const evt_ctx_t *ctx)
+{
+    return ctx->ctx;
+}
+
+SSL *evt_get_ssl(const evt_tls_t *tls)
+{
+    return tls->ssl;
+}
+
+
 static void tls_begin(void)
 {
     SSL_library_init();
@@ -33,7 +44,7 @@ static void tls_begin(void)
 }
 
 
-evt_tls_t *get_tls(evt_ctx_t *d_eng)
+evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
 {
     evt_tls_t *con = malloc(sizeof(evt_tls_t));
     if ( !con ) {
@@ -44,6 +55,7 @@ evt_tls_t *get_tls(evt_ctx_t *d_eng)
     SSL *ssl  = SSL_new(d_eng->ctx);
 
     if ( !ssl ) {
+        free(con);
         return NULL;
     }
     con->ssl = ssl;
@@ -281,13 +293,14 @@ int evt_tls_delete(evt_tls_t *tls)
 //clean up calls
 void evt_ctx_free(evt_ctx_t *ctx) {
     QUEUE* qh;
-    evt_tls_t *h = NULL;
+    evt_tls_t *tls = NULL;
 
     //clean all pending connections
     QUEUE_FOREACH(qh, &ctx->live_con) {
-        h = QUEUE_DATA(qh, evt_tls_t, q);
+        tls = QUEUE_DATA(qh, evt_tls_t, q);
         //force close all connections and clean
-        //XXX add code here for cleaning
+        //XXX add code here for cleaning, wait for QUEUE_MOVE in libuv
+        evt__tls__op(tls, EVT_TLS_OP_SHUTDOWN, NULL, 0);
     }
 
     SSL_CTX_free(ctx->ctx);
@@ -302,4 +315,3 @@ void evt_ctx_free(evt_ctx_t *ctx) {
     //SSL_COMP_free_compression_methods();
     CRYPTO_cleanup_all_ex_data();
 }
-

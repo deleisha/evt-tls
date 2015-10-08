@@ -8,7 +8,7 @@ int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
 
     assert(0 == uv_tcp_init(loop, &(endpt->skt)));
 
-    evt_tls_t *t = get_tls(ctx);
+    evt_tls_t *t = evt_ctx_get_tls(ctx);
     assert( t != NULL );
 
     t->data = endpt;

@@ -41,6 +41,7 @@ typedef struct evt_ctx_s
     void *live_con[2];
 
     net_wrtr writer;
+
 } evt_ctx_t;
 
 struct evt_tls_s {
@@ -89,7 +90,8 @@ int evt_ctx_is_crtf_set(evt_ctx_t *t);
 
 /* test if the key is set */
 int evt_ctx_is_key_set(evt_ctx_t *t);
-evt_tls_t *get_tls(evt_ctx_t *d_eng);
+
+evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng);
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer);
 void evt_ctx_free(evt_ctx_t *ctx);
 
@@ -103,17 +105,25 @@ int evt_tls_read(evt_tls_t *c, evt_read_cb on_read );
 int evt_tls_close(evt_tls_t *c, evt_close_cb cls);
 int evt_tls_delete(evt_tls_t *tls);
 
-//openssl 1.0.2 and later has SSL_is_server API to check
-//if the ssl connection is server or not
-// Some older versions does not have this function.
-// Hence this function is introduced.
 
+/******************************************************************************
+SSL helper API
+******************************************************************************/
+
+//openssl>=1.0.2 has SSL_is_server API to check if the ssl connection is server.
+//Older versions does not have this function. Hence this function is introduced.
 // 0 - client
 // 1 - server
 // XXX: make this enum
 int evt_tls_get_role(const evt_tls_t *t);
 
 void evt_tls_set_role(evt_tls_t *t, int role);
+
+//Gives the ptr to SSL_CTX usable raw openSSL programming
+SSL_CTX *evt_get_SSL_CTX(const evt_ctx_t *ctx);
+
+//Gives the ssl usable for doing raw OpenSSL programming
+SSL *evt_get_ssl(const evt_tls_t *tls);
 
 
 #ifdef __cplusplus 
