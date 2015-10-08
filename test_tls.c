@@ -151,5 +151,7 @@ int main()
 
 
     uv_run(loop, UV_RUN_DEFAULT);
+
+    evt_ctx_free(&ctx);
     return 0;
 }

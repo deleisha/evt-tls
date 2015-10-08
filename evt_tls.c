@@ -285,4 +285,20 @@ int evt_tls_delete(evt_tls_t *tls)
     tls = NULL;
     return 0;
 }
+
 //clean up calls
+void evt_ctx_free(evt_ctx_t *ctx) {
+
+    SSL_CTX_free(ctx->ctx);
+    ctx->ctx = NULL;
+
+    ERR_remove_state(0);
+    ENGINE_cleanup();
+    CONF_modules_unload(1);
+    ERR_free_strings();
+    EVP_cleanup();
+    sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
+    //SSL_COMP_free_compression_methods();
+    CRYPTO_cleanup_all_ex_data();
+}
+
