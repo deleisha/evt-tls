@@ -18,7 +18,6 @@ typedef void (*evt_conn_cb)(evt_tls_t *con, int status);
 typedef void (*evt_accept_cb)(evt_tls_t *con, int status);
 typedef void (*evt_read_cb)(evt_tls_t *con, char *buf, int size);
 typedef void (*evt_write_cb)(evt_tls_t *con, int status);
-//XXX: should we remove status param
 typedef void (*evt_close_cb)(evt_tls_t *con, int status);
 
 typedef int (*net_wrtr)(evt_tls_t *tls, void *edata, int len);
@@ -38,8 +37,10 @@ typedef struct evt_ctx_s
     //flag to signify if ssl error has occured
     int ssl_err_;
 
+    //list of live connections created from this ctx
     void *live_con[2];
 
+    //function used to updating peer with SSL data
     net_wrtr writer;
 
 } evt_ctx_t;
@@ -48,20 +49,21 @@ struct evt_tls_s {
 
     void    *data;
 
-    BIO     *app_bio_; //Our BIO, All IO should be through this
+    //Our BIO, all IO should be through this
+    BIO     *app_bio_;
 
     SSL     *ssl;
     
-    //network writer used for writing encrypted data
+    //this can be changed per connections
     net_wrtr writer;
 
 
     //callbacks
     evt_conn_cb connect_cb;
     evt_accept_cb accept_cb;
-    evt_read_cb rd_cb;
+    evt_read_cb read_cb;
     evt_write_cb write_cb;
-    evt_close_cb cls_cb;
+    evt_close_cb close_cb;
 
     //back handle to parent
     evt_ctx_t *evt_ctx;

@@ -186,8 +186,8 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
             bytes = after__wrk(c, tbuf);
             if ( r > 0 ) {
-                assert(c->rd_cb != NULL);
-                c->rd_cb(c, tbuf, r);
+                assert(c->read_cb != NULL);
+                c->read_cb(c, tbuf, r);
             }
             break;
         }
@@ -204,8 +204,8 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
         case EVT_TLS_OP_SHUTDOWN: {
             r = SSL_shutdown(c->ssl);
             bytes = after__wrk(c, tbuf);
-            if ( (1 == r)  && c->cls_cb) {
-                c->cls_cb(c, r);
+            if ( (1 == r)  && c->close_cb) {
+                c->close_cb(c, r);
             }
             break;
         }
@@ -258,19 +258,19 @@ int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
 int evt_tls_read(evt_tls_t *c, evt_read_cb on_read)
 {
     assert(c != NULL);
-    c->rd_cb = on_read;
+    c->read_cb = on_read;
     return 0;
 }
 
-int evt_tls_close(evt_tls_t *tls, evt_close_cb cls_cb)
+int evt_tls_close(evt_tls_t *tls, evt_close_cb cb)
 {    
     assert(tls != NULL);
-    tls->cls_cb = cls_cb;
+    tls->close_cb = cb;
     return evt__tls__op(tls, EVT_TLS_OP_SHUTDOWN, NULL, 0);
 }
 
 //need impl
-int evt_tls_force_close(evt_tls_t *tls, evt_close_cb cls_cb);
+int evt_tls_force_close(evt_tls_t *tls, evt_close_cb cb);
 
 
 
