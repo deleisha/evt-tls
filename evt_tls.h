@@ -1,7 +1,6 @@
 #ifndef EVT_TLS_H
 #define EVT_TLS_H
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -10,7 +9,6 @@ extern "C" {
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
-
 #include "queue.h"
 
 
@@ -93,12 +91,9 @@ int evt_ctx_is_crtf_set(evt_ctx_t *t);
 
 /* test if the key is set */
 int evt_ctx_is_key_set(evt_ctx_t *t);
-
 evt_tls_t *get_tls(evt_ctx_t *d_eng);
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer);
-
 void evt_ctx_free(evt_ctx_t *ctx);
-
 
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
@@ -109,7 +104,6 @@ int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
 int evt_tls_read(evt_tls_t *c, evt_allocator allok, evt_read_cb on_read );
 int evt_tls_close(evt_tls_t *c, evt_close_cb cls);
 int evt_tls_delete(evt_tls_t *tls);
-
 
 //openssl 1.0.2 and later has SSL_is_server API to check
 //if the ssl connection is server or not

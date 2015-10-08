@@ -288,6 +288,15 @@ int evt_tls_delete(evt_tls_t *tls)
 
 //clean up calls
 void evt_ctx_free(evt_ctx_t *ctx) {
+    QUEUE* qh;
+    evt_tls_t *h = NULL;
+
+    //clean all pending connections
+    QUEUE_FOREACH(qh, &ctx->live_con) {
+        h = QUEUE_DATA(qh, evt_tls_t, q);
+        //force close all connections and clean
+        //XXX add code here for cleaning
+    }
 
     SSL_CTX_free(ctx->ctx);
     ctx->ctx = NULL;

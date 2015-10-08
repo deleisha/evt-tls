@@ -164,5 +164,7 @@ int main()
     //test close
     test_tls_close(&svc_hdl, cls);
 
+    evt_ctx_free(&tls);
+
     return 0;
 }

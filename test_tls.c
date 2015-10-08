@@ -29,6 +29,7 @@ int uv_tls_close(uv_tls_t *strm, evt_close_cb cb)
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 {
     uv_tls_t *parent = CONTAINER_OF(stream, uv_tls_t, skt);
+    assert( parent != NULL);
     if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
             uv_tls_close(parent, on_close);
@@ -36,11 +37,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
         free(data->base);
         return;
     }
-
-    assert( parent != NULL);
-
     evt_tls_feed_data(parent->tls, data->base, nrd);
-
     free(data->base);
 }
 
