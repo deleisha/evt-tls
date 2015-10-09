@@ -9,21 +9,29 @@ void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
     assert(buf->base != NULL && "Memory allocation failed");
 }
 
+//test code
 void on_uv_close(uv_handle_t *hdl)
 {
     free(hdl);
 }
 
-void on_close(evt_tls_t *t, int status)
+void on_close(evt_tls_t *tls, int status)
 {
-    uv_tls_t *ut = (uv_tls_t*)t->data;
-    evt_tls_delete(t);
-    uv_close( (uv_handle_t*)&(ut->skt), on_uv_close);
+    assert(1 == status);
+    uv_tls_t *ut = (uv_tls_t*)tls->data;
+    assert( ut->tls_cls_cb != NULL);
+
+    evt_tls_delete(tls);
+    //XXX handle error
+    uv_close( (uv_handle_t*)&(ut->skt), ut->tls_cls_cb);
 }
 
-int uv_tls_close(uv_tls_t *strm, evt_close_cb cb)
+int uv_tls_close(uv_handle_t *strm,  uv_close_cb cb)
 {
-    return evt_tls_close(strm->tls, cb);
+    uv_tls_t *t = (uv_tls_t*)strm;
+    t->tls_cls_cb = cb;
+
+    return evt_tls_close(t->tls, on_close);
 }
 
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
@@ -32,7 +40,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
     assert( parent != NULL);
     if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
-            uv_tls_close(parent, on_close);
+            uv_tls_close((uv_handle_t*)stream, on_uv_close);
         }
         free(data->base);
         return;
@@ -43,7 +51,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 
 void on_write(evt_tls_t *tls, int status)
 {
-    uv_tls_close((uv_tls_t*)tls->data, on_close);
+    uv_tls_close((uv_handle_t*)tls->data, on_uv_close);
 }
 
 int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
@@ -51,29 +59,42 @@ int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
     return evt_tls_write(stream->tls, buf->base, buf->len, cb);
 }
 
+//test code
+void uv_rd_cb( uv_stream_t *strm, ssize_t nrd, const uv_buf_t *bfr)
+{
+    uv_tls_write((uv_tls_t*)strm, bfr, on_write);
+}
+
 void evt_on_rd(evt_tls_t *t, char *bfr, int sz)
 {
     uv_buf_t data;
+    uv_tls_t *tls = (uv_tls_t*)t->data;
+
     data.base = bfr;
     data.len = sz;
 
-    uv_tls_write((uv_tls_t*)t->data, &data, on_write);
+    assert(tls->tls_rd_cb != NULL);
+    tls->tls_rd_cb((uv_stream_t*)tls, sz, &data);
 }
 
 
-int uv_tls_read(uv_tls_t *t, uv_alloc_cb alloc_cb, evt_read_cb cb)
+//uv_alloc_cb is unused. This is here to mimick API similarity with libuv
+// XXX remove?
+int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb, uv_read_cb cb)
 {
-    return evt_tls_read(t->tls, cb);
+    uv_tls_t *ptr = (uv_tls_t*)tls;
+    ptr->tls_rd_cb = cb;
+    return evt_tls_read(ptr->tls, evt_on_rd);
 }
 
 void on_hd_complete( evt_tls_t *t, int status)
 {
     uv_tls_t *ut = (uv_tls_t*)t->data;
     if ( 1 == status ) {
-        uv_tls_read(ut, alloc_cb, evt_on_rd);
+        uv_tls_read((uv_stream_t*)ut, alloc_cb, uv_rd_cb);
     }
     else {
-        uv_tls_close(ut, on_close);
+        uv_tls_close((uv_handle_t*)ut, on_uv_close);
     }
 }
 
@@ -115,13 +136,11 @@ int uv_tls_writer(evt_tls_t *t, void *bfr, int sz)
 
 int main()
 {
-    uv_loop_t *loop;
+    uv_loop_t *loop = uv_default_loop();
     evt_ctx_t ctx;
     const int port = 8000;
     struct sockaddr_in bind_addr;
     int r = 0;
-
-    loop = uv_default_loop();
 
     evt_ctx_init(&ctx);
     evt_ctx_set_crt_key(&ctx, "server-cert.pem", "server-key.pem");

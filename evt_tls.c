@@ -144,7 +144,7 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
 }
 
 
-static int after__wrk(evt_tls_t *c, void *buf)
+static int evt__send_pending(evt_tls_t *c, void *buf)
 {
     assert( c != NULL);
     int pending = BIO_pending(c->app_bio_);
@@ -168,8 +168,8 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(c->ssl);
-            bytes = after__wrk(c, tbuf);
-            if  (1 == r) { // XXX handle r == 0, which is shutdown
+            bytes = evt__send_pending(c, tbuf);
+            if  (1 == r) {
                 if (!evt_tls_get_role(c)) { //client
                     assert(c->connect_cb != NULL );
                     c->connect_cb(c, r);
@@ -184,8 +184,8 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_READ: {
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
-            bytes = after__wrk(c, tbuf);
-            if ( r > 0 ) {
+            bytes = evt__send_pending(c, tbuf);
+            if ( r > 0 ) { // XXX handle r == 0, which is shutdown
                 assert(c->read_cb != NULL);
                 c->read_cb(c, tbuf, r);
             }
@@ -194,7 +194,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_WRITE: {
             r = SSL_write(c->ssl, buf, sz);
-            bytes = after__wrk(c, tbuf);
+            bytes = evt__send_pending(c, tbuf);
             if ( r > 0  &&  c->write_cb) {
                     c->write_cb(c, r);
             }
@@ -203,7 +203,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_SHUTDOWN: {
             r = SSL_shutdown(c->ssl);
-            bytes = after__wrk(c, tbuf);
+            bytes = evt__send_pending(c, tbuf);
             if ( (1 == r)  && c->close_cb) {
                 c->close_cb(c, r);
             }

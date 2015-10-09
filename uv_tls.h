@@ -19,6 +19,10 @@ typedef struct uv_tls_s uv_tls_t;
 struct uv_tls_s {
    uv_tcp_t skt;
    evt_tls_t *tls;
+
+   uv_read_cb tls_rd_cb;
+   uv_connect_cb tls_cnct_cb;
+   uv_close_cb tls_cls_cb;
 };
 
 int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt);
