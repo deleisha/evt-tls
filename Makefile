@@ -1,4 +1,4 @@
-all: clean evt new gen_cert
+all: clean evt new gen_cert test
 evt:
 	cd libuv && python gyp_uv.py
 	make -C ./libuv/out
@@ -11,7 +11,8 @@ gen_cert:
 new:
 	clang -g -Wall -o $@ new.c evt_tls.c -lssl -lcrypto -lrt
 
-       
+test:
+	./new
 
 clean:
 	-rm evt

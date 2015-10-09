@@ -7,7 +7,6 @@ This is still work in progress.
 Keep Watching for *More Actions on This Space*
 
 # BUILD AND TEST
-To join the actions, download the code and do
+To join the actions, download the code and to build and test
 
-`make` and to test
-`make test`
+`make`
