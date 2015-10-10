@@ -21,6 +21,7 @@ typedef void (*evt_write_cb)(evt_tls_t *con, int status);
 typedef void (*evt_close_cb)(evt_tls_t *con, int status);
 
 typedef int (*net_wrtr)(evt_tls_t *tls, void *edata, int len);
+typedef int (*net_rdr)(evt_tls_t *tls, void *edata, int len);
 
 
 typedef struct evt_ctx_s
@@ -43,6 +44,9 @@ typedef struct evt_ctx_s
     //function used to updating peer with SSL data
     net_wrtr writer;
 
+    //function for reading network data and feeding to evt
+    net_rdr reader;
+
 } evt_ctx_t;
 
 struct evt_tls_s {
@@ -56,6 +60,7 @@ struct evt_tls_s {
     
     //this can be changed per connections
     net_wrtr writer;
+    net_rdr reader;
 
 
     //callbacks
@@ -95,6 +100,8 @@ int evt_ctx_is_key_set(evt_ctx_t *t);
 
 evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng);
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer);
+void evt_ctx_set_reader(evt_ctx_t *ctx, net_rdr my_reader);
+void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer);
 void evt_ctx_free(evt_ctx_t *ctx);
 
 

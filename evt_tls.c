@@ -1,8 +1,6 @@
 #include <assert.h>
 #include "evt_tls.h"
 
-
-
 // 0 - client
 // 1 - server
 // XXX: make this enum
@@ -43,7 +41,6 @@ static void tls_begin(void)
     ERR_load_crypto_strings();
 }
 
-
 evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
 {
     evt_tls_t *con = malloc(sizeof(evt_tls_t));
@@ -69,6 +66,7 @@ evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
     QUEUE_INSERT_TAIL(&(d_eng->live_con), &(con->q));
 
     con->writer = d_eng->writer;
+    con->reader = d_eng->reader;
     con->evt_ctx = d_eng;
 
     return con;
@@ -76,9 +74,23 @@ evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
 
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer)
 {
-    assert( ctx->writer == NULL);
     ctx->writer = my_writer;
     assert( ctx->writer != NULL);
+}
+
+void evt_ctx_set_reader(evt_ctx_t *ctx, net_rdr my_reader)
+{
+    ctx->reader = my_reader;
+    assert( ctx->reader != NULL);
+}
+
+void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer)
+{
+    ctx->writer = my_writer;
+    assert( ctx->writer != NULL);
+
+    ctx->reader = my_reader;
+    assert( ctx->reader != NULL);
 }
 
 int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key)
@@ -128,6 +140,7 @@ int evt_ctx_init(evt_ctx_t *tls)
     tls->key_set = 0;
     tls->ssl_err_ = 0;
     tls->writer = NULL;
+    tls->reader = NULL;
 
     QUEUE_INIT(&(tls->live_con));
     return 0;
@@ -232,7 +245,6 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
     return rv;
 }
 
-
 int evt_tls_connect(evt_tls_t *con, evt_conn_cb on_connect)
 {
     con->connect_cb = on_connect;
@@ -240,11 +252,12 @@ int evt_tls_connect(evt_tls_t *con, evt_conn_cb on_connect)
     return evt__tls__op(con, EVT_TLS_OP_HANDSHAKE, NULL, 0);
 }
 
-int evt_tls_accept( evt_tls_t *svc, evt_accept_cb cb)
+int evt_tls_accept(evt_tls_t *tls, evt_accept_cb cb)
 {
-    assert(svc != NULL);
-    SSL_set_accept_state(svc->ssl);
-    svc->accept_cb = cb;
+    assert(tls != NULL);
+    SSL_set_accept_state(tls->ssl);
+    tls->accept_cb = cb;
+    //net_rdr(tls, edata, sz);
     return 0;
 }
 
