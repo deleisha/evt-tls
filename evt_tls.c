@@ -31,7 +31,6 @@ SSL *evt_get_ssl(const evt_tls_t *tls)
     return tls->ssl;
 }
 
-
 static void tls_begin(void)
 {
     SSL_library_init();
@@ -156,7 +155,6 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
     return t->key_set;
 }
 
-
 static int evt__send_pending(evt_tls_t *c, void *buf)
 {
     assert( c != NULL);
@@ -182,7 +180,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
         case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(c->ssl);
             bytes = evt__send_pending(c, tbuf);
-            if  (1 == r) {
+            if ( 1 == r ) {
                 if (!evt_tls_get_role(c)) { //client
                     assert(c->connect_cb != NULL );
                     c->connect_cb(c, r);
@@ -209,7 +207,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             r = SSL_write(c->ssl, buf, sz);
             bytes = evt__send_pending(c, tbuf);
             if ( r > 0  &&  c->write_cb) {
-                    c->write_cb(c, r);
+                c->write_cb(c, r);
             }
             break;
         }
@@ -217,7 +215,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
         case EVT_TLS_OP_SHUTDOWN: {
             r = SSL_shutdown(c->ssl);
             bytes = evt__send_pending(c, tbuf);
-            if ( (1 == r)  && c->close_cb) {
+            if ( (1 == r)  && c->close_cb ) {
                 c->close_cb(c, r);
             }
             break;
@@ -257,7 +255,10 @@ int evt_tls_accept(evt_tls_t *tls, evt_accept_cb cb)
     assert(tls != NULL);
     SSL_set_accept_state(tls->ssl);
     tls->accept_cb = cb;
-    //net_rdr(tls, edata, sz);
+
+    //assert( tls->reader != NULL && "You need to set network reader first");
+    //char edata[16*1024] = {0};
+    //tls->reader(tls, edata, sizeof(edata));
     return 0;
 }
 
@@ -265,6 +266,10 @@ int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
 {
     c->write_cb = on_write;
     return evt__tls__op(c, EVT_TLS_OP_WRITE, msg, str_len);
+}
+
+int evt_tls_encrypt(evt_tls_t *c, void *msg, int sz)
+{
 }
 
 // read only register the callback to be made
@@ -276,7 +281,7 @@ int evt_tls_read(evt_tls_t *c, evt_read_cb on_read)
 }
 
 int evt_tls_close(evt_tls_t *tls, evt_close_cb cb)
-{    
+{
     assert(tls != NULL);
     tls->close_cb = cb;
     return evt__tls__op(tls, EVT_TLS_OP_SHUTDOWN, NULL, 0);
@@ -304,7 +309,8 @@ int evt_tls_delete(evt_tls_t *tls)
 }
 
 //clean up calls
-void evt_ctx_free(evt_ctx_t *ctx) {
+void evt_ctx_free(evt_ctx_t *ctx)
+{
     QUEUE* qh;
     evt_tls_t *tls = NULL;
 
