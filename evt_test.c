@@ -22,16 +22,31 @@ int test_tls_init(evt_ctx_t *ctx, test_tls_t *tst_tls)
 
     evt_tls_t *t = evt_ctx_get_tls(ctx);
     assert(t != NULL);
+    t->data = tst_tls;
     tst_tls->endpt = t;
     return 0;
 }
 
-void on_read( evt_tls_t *tls, char *buf, int sz);
+void cls(evt_tls_t *evt, int status)
+{
+    printf("++++++++ On_close_cb called ++++++++\n");
+
+}
+
+void on_response_read( evt_tls_t *tls, char *buf, int sz)
+{
+    printf(" +++++++++ On_read called ++++++++\n");
+    printf("%s", (char*)buf);
+
+    test_tls_close((test_tls_t *)tls->data, cls);
+}
+
+
 void on_write(evt_tls_t *tls, int status)
 {
     assert(status > 0);
     printf("++++++++ On_write called ++++++++\n");
-    evt_tls_read( tls, on_read);
+    evt_tls_read( tls, on_response_read);
 }
 
 void on_read( evt_tls_t *tls, char *buf, int sz)
@@ -39,12 +54,6 @@ void on_read( evt_tls_t *tls, char *buf, int sz)
     printf(" +++++++++ On_read called ++++++++\n");
     printf("%s", (char*)buf);
     evt_tls_write(tls, buf, sz, on_write);
-}
-
-void cls(evt_tls_t *evt, int status)
-{
-    printf("++++++++ On_close_cb called ++++++++\n");
-
 }
 
 int test_tls_close(test_tls_t *t, evt_close_cb cls)
@@ -60,7 +69,6 @@ void on_connect(evt_tls_t *tls, int status)
 	char msg[] = "Hello from event based tls engine\n";
 	int str_len = sizeof(msg);
 	r =  evt_tls_write(tls, msg, str_len, on_write);
-
     }
     else { //handle ssl_shutdown
         test_tls_close((test_tls_t*)tls, cls);
@@ -78,15 +86,16 @@ int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
     return 0;
 }
 
-int test_net_rdr(test_tls_t *stream, void *data, int sz)
+int start_nio(test_tls_t *source, test_tls_t *destination)
 {
-    int r = 0;
-    if ( test_data.stalled ) {
-	return r;
+    for(;;) {
+        if ( test_data.stalled ) continue;
+        test_data.stalled = 1;
+        evt_tls_feed_data(destination->endpt, test_data.data, test_data.sz);
+        test_tls_t *tmp = destination;
+        destination = source;
+        source = tmp;
     }
-    test_data.stalled = 1;
-    r = evt_tls_feed_data(stream->endpt, test_data.data, test_data.sz);
-    return r;
 }
 
 int test_tls_connect(test_tls_t *t, evt_conn_cb on_connect)
@@ -110,7 +119,6 @@ int test_tls_accept(test_tls_t *tls, evt_accept_cb on_accept)
 {
     return evt_tls_accept(tls->endpt, on_accept);
 }
-
 
 int main()
 {
@@ -144,18 +152,8 @@ int main()
 
     test_tls_connect(&clnt_hdl, on_connect);
     test_tls_accept(&svc_hdl, on_accept);
-    //handshake
-    test_net_rdr(& svc_hdl, NULL, 0);
-    test_net_rdr( &clnt_hdl, NULL, 0);
-    test_net_rdr(& svc_hdl, NULL, 0);
-    test_net_rdr( &clnt_hdl, NULL, 0);
 
-    //test read and write
-    test_net_rdr( &svc_hdl, NULL, 0);
-    test_net_rdr( &clnt_hdl, NULL, 0 );
-
-    //test close
-    test_tls_close(&svc_hdl, cls);
+    start_nio(&clnt_hdl, &svc_hdl);
 
     evt_ctx_free(&tls);
 

@@ -91,7 +91,6 @@ void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer)
 
 int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key)
 {
-    //SSL_CTX_set_verify(tls->ctx, SSL_VERIFY_NONE, uv__tls_verify_peer);
     SSL_CTX_set_verify(tls->ctx, SSL_VERIFY_NONE, NULL);
 
     int r = SSL_CTX_use_certificate_file(tls->ctx, crtf, SSL_FILETYPE_PEM);
@@ -178,7 +177,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             r = SSL_do_handshake(c->ssl);
             bytes = evt__send_pending(c, tbuf);
             if ( 1 == r ) {
-                if (!evt_tls_get_role(c)) { //client
+                if (ENDPT_IS_CLIENT == evt_tls_get_role(c)) { //client
                     assert(c->connect_cb != NULL );
                     c->connect_cb(c, r);
                 }
