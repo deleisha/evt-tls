@@ -35,6 +35,7 @@ int test_tls_init(evt_ctx_t *ctx, test_tls_t *tst_tls)
 void cls(evt_tls_t *evt, int status)
 {
     printf("[%s]: on_close_cb called ++++++++\n", role[evt_tls_get_role(evt)]);
+    evt_tls_free(evt);
 }
 
 int test_tls_close(test_tls_t *t, evt_close_cb cls)
@@ -61,11 +62,16 @@ void on_server_wr(evt_tls_t *tls, int status)
 {
     assert(status > 0);
     printf("[%s]: on_server_wr called ++++++++\n", role[evt_tls_get_role(tls)]);
-    test_tls_close((test_tls_t *)tls->data, cls);
+    //test_tls_close((test_tls_t *)tls->data, cls);
 }
 
 void on_server_rd( evt_tls_t *tls, char *buf, int sz)
 {
+    test_tls_t *test_tls = (test_tls_t*)tls->data;
+    if ( sz <= 0 ) {
+        test_tls_close(test_tls, cls);
+        return;
+    }
     printf("[%s]: on_server_rd called ++++++++\n", role[evt_tls_get_role(tls)]);
     printf("%s", (char*)buf);
     evt_tls_write(tls, buf, sz, on_server_wr);

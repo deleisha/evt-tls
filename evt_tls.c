@@ -191,12 +191,9 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_READ: {
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
-            if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(c, tbuf);
-            if ( r > 0 ) { // XXX handle r == 0, which is shutdown
-                assert(c->read_cb != NULL);
-                c->read_cb(c, tbuf, r);
-            }
+            assert(c->read_cb != NULL);
+            c->read_cb(c, tbuf, r);
             break;
         }
 
