@@ -46,7 +46,6 @@ evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
     memset( con, 0, sizeof *con);
 
     SSL *ssl  = SSL_new(d_eng->ctx);
-
     if ( !ssl ) {
         free(con);
         return NULL;
@@ -175,8 +174,9 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(c->ssl);
+            if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(c, tbuf);
-            if ( 1 == r ) {
+            if (1 == r) {
                 if (ENDPT_IS_CLIENT == evt_tls_get_role(c)) { //client
                     assert(c->connect_cb != NULL );
                     c->connect_cb(c, r);
@@ -191,6 +191,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_READ: {
             r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
+            if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(c, tbuf);
             if ( r > 0 ) { // XXX handle r == 0, which is shutdown
                 assert(c->read_cb != NULL);
@@ -201,6 +202,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_WRITE: {
             r = SSL_write(c->ssl, buf, sz);
+            if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(c, tbuf);
             if ( r > 0  &&  c->write_cb) {
                 c->write_cb(c, r);
@@ -209,11 +211,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
         }
 
         case EVT_TLS_OP_SHUTDOWN: {
-            r = SSL_shutdown(c->ssl);
-            bytes = evt__send_pending(c, tbuf);
-            if ( (1 == r)  && c->close_cb ) {
-                c->close_cb(c, r);
-            }
+            goto handle_shutdown;
             break;
         }
 
@@ -222,6 +220,15 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             break;
     }
     return r;
+
+    handle_shutdown:
+        r = SSL_shutdown(c->ssl);
+        bytes = evt__send_pending(c, tbuf);
+        if ( (1 == r)  && c->close_cb ) {
+            c->close_cb(c, r);
+        }
+        return r;
+
 }
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
