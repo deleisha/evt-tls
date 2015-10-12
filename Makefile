@@ -9,7 +9,7 @@ gen_cert:
         -out server-cert.pem -config ssl_test.cnf
 
 test_evt:
-	clang -g -Wall -o $@ test_evt.c evt_tls.c -lssl -lcrypto -lrt
+	clang -g -Wall -o $@ evt_test.c evt_tls.c -lssl -lcrypto -lrt
 
 test:
 	./test_evt

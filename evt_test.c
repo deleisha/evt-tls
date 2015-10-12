@@ -78,14 +78,14 @@ int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
     return 0;
 }
 
-int test_net_rdr(test_tls_t *stream )
+int test_net_rdr(test_tls_t *stream, void *data, int sz)
 {
     int r = 0;
     if ( test_data.stalled ) {
 	return r;
     }
     test_data.stalled = 1;
-    r = evt_tls_feed_data(stream->endpt, test_data.data, test_data.sz); 
+    r = evt_tls_feed_data(stream->endpt, test_data.data, test_data.sz);
     return r;
 }
 
@@ -145,14 +145,14 @@ int main()
     test_tls_connect(&clnt_hdl, on_connect);
     test_tls_accept(&svc_hdl, on_accept);
     //handshake
-    test_net_rdr(& svc_hdl);
-    test_net_rdr( &clnt_hdl);
-    test_net_rdr(& svc_hdl);
-    test_net_rdr( &clnt_hdl);
+    test_net_rdr(& svc_hdl, NULL, 0);
+    test_net_rdr( &clnt_hdl, NULL, 0);
+    test_net_rdr(& svc_hdl, NULL, 0);
+    test_net_rdr( &clnt_hdl, NULL, 0);
 
     //test read and write
-    test_net_rdr( &svc_hdl);
-    test_net_rdr( &clnt_hdl);
+    test_net_rdr( &svc_hdl, NULL, 0);
+    test_net_rdr( &clnt_hdl, NULL, 0 );
 
     //test close
     test_tls_close(&svc_hdl, cls);

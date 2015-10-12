@@ -121,12 +121,16 @@ SSL helper API
 
 //openssl>=1.0.2 has SSL_is_server API to check if the ssl connection is server.
 //Older versions does not have this function. Hence this function is introduced.
-// 0 - client
-// 1 - server
-// XXX: make this enum
-int evt_tls_get_role(const evt_tls_t *t);
 
-void evt_tls_set_role(evt_tls_t *t, int role);
+enum evt_endpt_role {
+    ENDPT_IS_CLIENT
+   ,ENDPT_IS_SERVER
+};
+typedef enum evt_endpt_role evt_endpt_role;
+
+evt_endpt_role evt_tls_get_role(const evt_tls_t *t);
+
+void evt_tls_set_role(evt_tls_t *t, enum evt_endpt_role role);
 
 //Gives the ptr to SSL_CTX usable raw openSSL programming
 SSL_CTX *evt_get_SSL_CTX(const evt_ctx_t *ctx);
