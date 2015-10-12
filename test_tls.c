@@ -9,12 +9,6 @@ void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
     assert(buf->base != NULL && "Memory allocation failed");
 }
 
-//test code
-void on_uv_close(uv_handle_t *hdl)
-{
-    free(hdl);
-}
-
 void on_close(evt_tls_t *tls, int status)
 {
     assert(1 == status);
@@ -40,7 +34,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
     assert( parent != NULL);
     if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
-            uv_tls_close((uv_handle_t*)stream, on_uv_close);
+            uv_tls_close((uv_handle_t*)stream, (uv_close_cb)free);
         }
         free(data->base);
         return;
@@ -51,7 +45,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 
 void on_write(evt_tls_t *tls, int status)
 {
-    uv_tls_close((uv_handle_t*)tls->data, on_uv_close);
+    uv_tls_close((uv_handle_t*)tls->data, (uv_close_cb)free);
 }
 
 int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
@@ -94,7 +88,7 @@ void on_hd_complete( evt_tls_t *t, int status)
         uv_tls_read((uv_stream_t*)ut, alloc_cb, uv_rd_cb);
     }
     else {
-        uv_tls_close((uv_handle_t*)ut, on_uv_close);
+        uv_tls_close((uv_handle_t*)ut, (uv_close_cb)free);
     }
 }
 
