@@ -290,7 +290,7 @@ int evt_tls_force_close(evt_tls_t *tls, evt_close_cb cb);
 
 
 
-int evt_tls_delete(evt_tls_t *tls)
+int evt_tls_free(evt_tls_t *tls)
 {
     BIO_free(tls->app_bio_);
     tls->app_bio_ = NULL;

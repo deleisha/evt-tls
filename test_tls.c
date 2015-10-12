@@ -15,7 +15,7 @@ void on_close(evt_tls_t *tls, int status)
     uv_tls_t *ut = (uv_tls_t*)tls->data;
     assert( ut->tls_cls_cb != NULL);
 
-    evt_tls_delete(tls);
+    evt_tls_free(tls);
     //XXX handle error
     uv_close( (uv_handle_t*)&(ut->skt), ut->tls_cls_cb);
 }
