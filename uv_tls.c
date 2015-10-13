@@ -17,6 +17,7 @@ int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
     endpt->tls_rd_cb = NULL;
     endpt->tls_cnct_cb = NULL;
     endpt->tls_cls_cb = NULL;
+    endpt->tls_accpt_cb = NULL;
     return 0;
 }
 

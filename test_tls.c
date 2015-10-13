@@ -81,10 +81,10 @@ int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb, uv_read_cb cb)
     return evt_tls_read(ptr->tls, evt_on_rd);
 }
 
-void on_hd_complete( evt_tls_t *t, int status)
+/test code
+void on_uv_handshake(uv_tls_t *ut, int status)
 {
-    uv_tls_t *ut = (uv_tls_t*)t->data;
-    if ( 1 == status ) {
+    if ( 0 == status ) {
         uv_tls_read((uv_stream_t*)ut, alloc_cb, uv_rd_cb);
     }
     else {
@@ -92,11 +92,20 @@ void on_hd_complete( evt_tls_t *t, int status)
     }
 }
 
-int uv_tls_accept(uv_tls_t *t, evt_accept_cb cb)
+void on_hd_complete( evt_tls_t *t, int status)
 {
+
+    uv_tls_t *ut = (uv_tls_t*)t->data;
+    assert( ut != NULL && ut->tls_accpt_cb != NULL);
+    ut->tls_accpt_cb(ut, status -1);
+}
+
+int uv_tls_accept(uv_tls_t *t, uv_accept_cb cb)
+{
+    assert( t != NULL);
+    t->tls_accpt_cb = cb;
     evt_tls_t *tls = t->tls;
-    evt_tls_set_role(tls, 1);
-    tls->accept_cb = cb;
+    evt_tls_accept(tls, on_hd_complete);
     return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
 }
 
@@ -122,7 +131,7 @@ void on_connect_cb(uv_stream_t *server, int status)
 
     int r = uv_accept(server, (uv_stream_t*)&(sclient->skt));
     if(!r) {
-        uv_tls_accept(sclient, on_hd_complete);
+        uv_tls_accept(sclient, on_uv_handshake);
     }
 }
 

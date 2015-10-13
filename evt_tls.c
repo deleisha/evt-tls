@@ -161,7 +161,7 @@ static int evt__send_pending(evt_tls_t *c, void *buf)
     assert(p == pending);
 
     assert( c->writer != NULL && "You need to set network writer first");
-    c->writer(c, buf, p);
+    p = c->writer(c, buf, p);
     return p;
 }
 
@@ -314,6 +314,7 @@ void evt_ctx_free(evt_ctx_t *ctx)
 {
     QUEUE* qh;
     evt_tls_t *tls = NULL;
+    assert( ctx != NULL);
 
     //clean all pending connections
     QUEUE_FOREACH(qh, &ctx->live_con) {
