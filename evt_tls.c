@@ -76,16 +76,16 @@ void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer)
 void evt_ctx_set_reader(evt_ctx_t *ctx, net_rdr my_reader)
 {
     ctx->reader = my_reader;
-    assert( ctx->reader != NULL);
+    //assert( ctx->reader != NULL);
 }
 
 void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer)
 {
+    ctx->reader = my_reader;
+    //assert( ctx->reader != NULL);
+
     ctx->writer = my_writer;
     assert( ctx->writer != NULL);
-
-    ctx->reader = my_reader;
-    assert( ctx->reader != NULL);
 }
 
 int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key)
