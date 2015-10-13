@@ -52,16 +52,13 @@ typedef struct evt_ctx_s
 struct evt_tls_s {
 
     void    *data;
-
     //Our BIO, all IO should be through this
-    BIO     *app_bio_;
-
+    BIO     *app_bio;
     SSL     *ssl;
     
     //this can be changed per connections
     net_wrtr writer;
     net_rdr reader;
-
 
     //callbacks
     evt_conn_cb connect_cb;
@@ -74,7 +71,7 @@ struct evt_tls_s {
     evt_ctx_t *evt_ctx;
 
     QUEUE q;
-    BIO     *ssl_bio_; //the ssl BIO used only by openSSL
+    BIO     *ssl_bio; //the ssl BIO used only by openSSL
 };
 
 
@@ -89,8 +86,12 @@ enum tls_op_type {
 /*configure the tls state machine */
 int evt_ctx_init(evt_ctx_t *tls);
 
+/*configure the tls state machine
+This apart from configuring state machine also set up cert and key */
+int evt_ctx_init_ex(evt_ctx_t *tls, const char *crtf, const char *key);
+
 /* set the certifcate and key in order */
-int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key);
+int evt_ctx_set_crt_key(evt_ctx_t *tls, const char *crtf, const char *key);
 
 /* test if the certificate */
 int evt_ctx_is_crtf_set(evt_ctx_t *t);

@@ -53,9 +53,9 @@ evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
     con->ssl = ssl;
 
     //use default buf size for now.
-    BIO_new_bio_pair(&(con->ssl_bio_), 0, &(con->app_bio_), 0);
+    BIO_new_bio_pair(&(con->ssl_bio), 0, &(con->app_bio), 0);
 
-    SSL_set_bio(con->ssl, con->ssl_bio_, con->ssl_bio_);
+    SSL_set_bio(con->ssl, con->ssl_bio, con->ssl_bio);
 
     QUEUE_INIT(&(con->q));
     QUEUE_INSERT_TAIL(&(d_eng->live_con), &(con->q));
@@ -88,7 +88,7 @@ void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer)
     assert( ctx->writer != NULL);
 }
 
-int evt_ctx_set_crt_key(evt_ctx_t *tls, char *crtf, char *key)
+int evt_ctx_set_crt_key(evt_ctx_t *tls, const char *crtf, const char *key)
 {
     SSL_CTX_set_verify(tls->ctx, SSL_VERIFY_NONE, NULL);
 
@@ -140,9 +140,17 @@ int evt_ctx_init(evt_ctx_t *tls)
     return 0;
 }
 
+int evt_ctx_init_ex(evt_ctx_t *tls, const char *crtf, const char *key)
+{
+    int r = 0;
+    r = evt_ctx_init( tls);
+    assert( 0 == r);
+    return evt_ctx_set_crt_key(tls, crtf, key);
+}
+
 int evt_ctx_is_crtf_set(evt_ctx_t *t)
 {
-    return t->cert_set && t->key_set;
+    return t->cert_set;
 }
 
 int evt_ctx_is_key_set(evt_ctx_t *t)
@@ -153,11 +161,11 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
 static int evt__send_pending(evt_tls_t *c, void *buf)
 {
     assert( c != NULL);
-    int pending = BIO_pending(c->app_bio_);
+    int pending = BIO_pending(c->app_bio);
     if ( !(pending > 0) )
         return 0;
 
-    int p = BIO_read(c->app_bio_, buf, pending);
+    int p = BIO_read(c->app_bio, buf, pending);
     assert(p == pending);
 
     assert( c->writer != NULL && "You need to set network writer first");
@@ -230,7 +238,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
 {
-    int rv =  BIO_write(c->app_bio_, data, sz);
+    int rv =  BIO_write(c->app_bio, data, sz);
     assert( rv == sz);
 
     //if handshake is not complete, do it again
@@ -295,8 +303,8 @@ int evt_tls_force_close(evt_tls_t *tls, evt_close_cb cb);
 
 int evt_tls_free(evt_tls_t *tls)
 {
-    BIO_free(tls->app_bio_);
-    tls->app_bio_ = NULL;
+    BIO_free(tls->app_bio);
+    tls->app_bio = NULL;
 
     SSL_free(tls->ssl);
     tls->ssl = NULL;

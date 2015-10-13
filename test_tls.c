@@ -19,15 +19,11 @@ int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
     return evt_tls_write(stream->tls, buf->base, buf->len, cb);
 }
 
-//test code
 void uv_rd_cb( uv_stream_t *strm, ssize_t nrd, const uv_buf_t *bfr)
 {
     uv_tls_write((uv_tls_t*)strm, bfr, on_write);
 }
 
-
-
-//test code
 void on_uv_handshake(uv_tls_t *ut, int status)
 {
     if ( 0 == status ) {
@@ -38,7 +34,6 @@ void on_uv_handshake(uv_tls_t *ut, int status)
     }
 }
 
-//test code
 void on_connect_cb(uv_stream_t *server, int status)
 {
     int r = 0;
@@ -48,18 +43,15 @@ void on_connect_cb(uv_stream_t *server, int status)
     //memory being freed at on_close
     uv_tls_t *sclient = malloc(sizeof(*sclient));
     if( uv_tls_init(server->loop, (evt_ctx_t*)server->data, sclient) < 0 ) {
-        fprintf( stderr, "TLS setup error\n");
         free(sclient);
         return;
     }
-
     r = uv_accept(server, (uv_stream_t*)&(sclient->skt));
     if(!r) {
         uv_tls_accept(sclient, on_uv_handshake);
     }
 }
 
-//test code
 int uv_tls_writer(evt_tls_t *t, void *bfr, int sz)
 {
     uv_buf_t b;
@@ -76,8 +68,7 @@ int main()
     struct sockaddr_in bind_addr;
     int r = 0;
 
-    evt_ctx_init(&ctx);
-    evt_ctx_set_crt_key(&ctx, "server-cert.pem", "server-key.pem");
+    evt_ctx_init_ex(&ctx, "server-cert.pem", "server-key.pem");
     evt_ctx_set_nio(&ctx, NULL, uv_tls_writer);
 
     uv_tcp_t listener;
