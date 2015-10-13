@@ -1,6 +1,7 @@
 #include <assert.h>
 #include "uv_tls.h"
 
+//test code
 void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 {
     buf->base = (char*)malloc(size);
@@ -16,8 +17,8 @@ void on_close(evt_tls_t *tls, int status)
     assert( ut->tls_cls_cb != NULL);
 
     evt_tls_free(tls);
-    //XXX handle error
-    uv_close( (uv_handle_t*)&(ut->skt), ut->tls_cls_cb);
+    if ( !uv_is_closing((uv_handle_t*)&(ut->skt))
+        uv_close( (uv_handle_t*)&(ut->skt), ut->tls_cls_cb);
 }
 
 int uv_tls_close(uv_handle_t *strm,  uv_close_cb cb)
@@ -81,7 +82,7 @@ int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb, uv_read_cb cb)
     return evt_tls_read(ptr->tls, evt_on_rd);
 }
 
-/test code
+//test code
 void on_uv_handshake(uv_tls_t *ut, int status)
 {
     if ( 0 == status ) {
@@ -109,15 +110,10 @@ int uv_tls_accept(uv_tls_t *t, uv_accept_cb cb)
     return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
 }
 
-int my_net_rdr(evt_tls_t *tls, void *data, int sz)
-{
-    //return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
-    return 0;
-}
-
 //test code
 void on_connect_cb(uv_stream_t *server, int status)
 {
+    int r = 0;
     if( status ) {
         return;
     }
@@ -129,12 +125,13 @@ void on_connect_cb(uv_stream_t *server, int status)
         return;
     }
 
-    int r = uv_accept(server, (uv_stream_t*)&(sclient->skt));
+    r = uv_accept(server, (uv_stream_t*)&(sclient->skt));
     if(!r) {
         uv_tls_accept(sclient, on_uv_handshake);
     }
 }
 
+//test code
 int uv_tls_writer(evt_tls_t *t, void *bfr, int sz)
 {
     uv_buf_t b;
@@ -153,7 +150,7 @@ int main()
 
     evt_ctx_init(&ctx);
     evt_ctx_set_crt_key(&ctx, "server-cert.pem", "server-key.pem");
-    evt_ctx_set_writer(&ctx, uv_tls_writer);
+    evt_ctx_set_nio(&ctx, NULL, uv_tls_writer);
 
     uv_tcp_t listener;
     uv_tcp_init(loop, &listener);
