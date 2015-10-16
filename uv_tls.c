@@ -9,6 +9,12 @@ static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
     assert(buf->base != NULL && "Memory allocation failed");
 }
 
+int uv_tls_writer(evt_tls_t *t, void *bfr, int sz) {
+    uv_buf_t b;
+    b.base = bfr;
+    b.len = sz;
+    return uv_try_write(t->data, &b, 1);
+}
 
 int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
 {
@@ -43,8 +49,6 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
     evt_tls_feed_data(parent->tls, data->base, nrd);
     free(data->base);
 }
-
-
 
 static void on_hd_complete( evt_tls_t *t, int status)
 {

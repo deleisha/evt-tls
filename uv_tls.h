@@ -25,15 +25,19 @@ struct uv_tls_s {
    uv_handshake_cb tls_hsk_cb;
 };
 
+
+//implementation of network writer for libuv using uv_try_write
+int uv_tls_writer(evt_tls_t *t, void *bfr, int sz);
+
 int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt);
 
+int uv_tls_connect(uv_tls_t *t, uv_handshake_cb cb);
 int uv_tls_accept(uv_tls_t *tls, uv_handshake_cb cb);
 int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb , uv_read_cb on_read);
 int uv_tls_close(uv_handle_t* session, uv_close_cb close_cb);
 
 
 //int uv_tls_write(uv_write_t* req, uv_tls_t *client, uv_buf_t* buf, uv_write_cb cb);
-//int uv_tls_connect(uv_tls_t *t, evt_conn_cb on_connect)
 #ifdef __cpluplus
 }
 #endif //extern C
