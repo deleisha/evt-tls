@@ -14,6 +14,8 @@ extern "C" {
 
 typedef struct evt_tls_s evt_tls_t;
 
+//callback used for handshake completion notificat6ion
+//common for both client and server role
 typedef void (*evt_handshake_cb)(evt_tls_t *con, int status);
 typedef void (*evt_read_cb)(evt_tls_t *con, char *buf, int size);
 typedef void (*evt_write_cb)(evt_tls_t *con, int status);

@@ -48,7 +48,6 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 
 static void on_hd_complete( evt_tls_t *t, int status)
 {
-
     uv_tls_t *ut = (uv_tls_t*)t->data;
     assert( ut != NULL && ut->tls_hsk_cb != NULL);
     ut->tls_hsk_cb(ut, status -1);
