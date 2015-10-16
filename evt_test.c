@@ -121,7 +121,7 @@ int start_nio(test_tls_t *source, test_tls_t *destination)
     return 0;
 }
 
-int test_tls_connect(test_tls_t *t, evt_conn_cb on_connect)
+int test_tls_connect(test_tls_t *t, evt_handshake_cb on_connect)
 {
     return evt_tls_connect(t->endpt, on_connect);
 }
@@ -138,7 +138,7 @@ void on_accept(evt_tls_t *svc, int status)
     }
 }
 
-int test_tls_accept(test_tls_t *tls, evt_accept_cb on_accept)
+int test_tls_accept(test_tls_t *tls, evt_handshake_cb on_accept)
 {
     return evt_tls_accept(tls->endpt, on_accept);
 }

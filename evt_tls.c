@@ -182,17 +182,10 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(c->ssl);
-            if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(c, tbuf);
-            if (1 == r) {
-                if (ENDPT_IS_CLIENT == evt_tls_get_role(c)) { //client
-                    assert(c->connect_cb != NULL );
-                    c->connect_cb(c, r);
-                }
-                else { //server
-                    assert(c->accept_cb != NULL );
-                    c->accept_cb(c, r);
-                }
+            if (1 == r || 0 == r) {
+                assert(c->hshake_cb != NULL );
+                c->hshake_cb(c, r);
             }
             break;
         }
@@ -251,18 +244,18 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
     return rv;
 }
 
-int evt_tls_connect(evt_tls_t *con, evt_conn_cb on_connect)
+int evt_tls_connect(evt_tls_t *con, evt_handshake_cb cb)
 {
-    con->connect_cb = on_connect;
+    con->hshake_cb = cb;
     SSL_set_connect_state(con->ssl);
     return evt__tls__op(con, EVT_TLS_OP_HANDSHAKE, NULL, 0);
 }
 
-int evt_tls_accept(evt_tls_t *tls, evt_accept_cb cb)
+int evt_tls_accept(evt_tls_t *tls, evt_handshake_cb cb)
 {
     assert(tls != NULL);
     SSL_set_accept_state(tls->ssl);
-    tls->accept_cb = cb;
+    tls->hshake_cb = cb;
 
     //assert( tls->reader != NULL && "You need to set network reader first");
     //char edata[16*1024] = {0};

@@ -14,8 +14,7 @@ extern "C" {
 
 typedef struct evt_tls_s evt_tls_t;
 
-typedef void (*evt_conn_cb)(evt_tls_t *con, int status);
-typedef void (*evt_accept_cb)(evt_tls_t *con, int status);
+typedef void (*evt_handshake_cb)(evt_tls_t *con, int status);
 typedef void (*evt_read_cb)(evt_tls_t *con, char *buf, int size);
 typedef void (*evt_write_cb)(evt_tls_t *con, int status);
 typedef void (*evt_close_cb)(evt_tls_t *con, int status);
@@ -61,8 +60,7 @@ struct evt_tls_s {
     net_rdr reader;
 
     //callbacks
-    evt_conn_cb connect_cb;
-    evt_accept_cb accept_cb;
+    evt_handshake_cb hshake_cb;
     evt_read_cb read_cb;
     evt_write_cb write_cb;
     evt_close_cb close_cb;
@@ -108,8 +106,8 @@ void evt_ctx_free(evt_ctx_t *ctx);
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 
-int evt_tls_connect(evt_tls_t *con, evt_conn_cb cb);
-int evt_tls_accept( evt_tls_t *tls, evt_accept_cb cb);
+int evt_tls_connect(evt_tls_t *con, evt_handshake_cb cb);
+int evt_tls_accept( evt_tls_t *tls, evt_handshake_cb cb);
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
 int evt_tls_read(evt_tls_t *c, evt_read_cb on_read );
 int evt_tls_close(evt_tls_t *c, evt_close_cb cls);

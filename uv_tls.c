@@ -15,7 +15,7 @@ int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
     int r = 0;
     memset( endpt, 0, sizeof *endpt);
 
-    r = uv_tcp_init(loop, &(endpt->skt)));
+    r = uv_tcp_init(loop, &(endpt->skt));
 
     evt_tls_t *t = evt_ctx_get_tls(ctx);
     assert( t != NULL );
@@ -111,8 +111,7 @@ int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb, uv_read_cb cb)
 }
 
 
-//Need to implement
-int uv_tls_connect(uv_tls_t *t, evt_conn_cb on_connect)
+int uv_tls_connect(uv_tls_t *t, evt_handshake_cb cb)
 {
     return 0;
 }
