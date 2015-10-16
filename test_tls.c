@@ -21,7 +21,9 @@ int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb)
 
 void uv_rd_cb( uv_stream_t *strm, ssize_t nrd, const uv_buf_t *bfr)
 {
-    uv_tls_write((uv_tls_t*)strm, bfr, on_write);
+    if ( nrd <= 0 )
+        return;
+    uv_tls_write((uv_tls_t*)strm, (uv_buf_t*)bfr, on_write);
 }
 
 void on_uv_handshake(uv_tls_t *ut, int status)

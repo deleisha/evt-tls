@@ -199,6 +199,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
         }
 
         case EVT_TLS_OP_WRITE: {
+            assert( sz > 0 && "number of bytes to write shouls be positive");
             r = SSL_write(c->ssl, buf, sz);
             if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(c, tbuf);
