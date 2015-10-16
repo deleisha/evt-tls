@@ -12,9 +12,10 @@ static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 
 int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
 {
+    int r = 0;
     memset( endpt, 0, sizeof *endpt);
 
-    assert(0 == uv_tcp_init(loop, &(endpt->skt)));
+    r = uv_tcp_init(loop, &(endpt->skt)));
 
     evt_tls_t *t = evt_ctx_get_tls(ctx);
     assert( t != NULL );
@@ -26,7 +27,7 @@ int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
     endpt->tls_cnct_cb = NULL;
     endpt->tls_cls_cb = NULL;
     endpt->tls_accpt_cb = NULL;
-    return 0;
+    return r;
 }
 
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
