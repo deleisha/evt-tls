@@ -97,9 +97,6 @@ int uv_tls_close(uv_handle_t *strm,  uv_close_cb cb)
     return evt_tls_close(t->tls, on_close);
 }
 
-
-
-
 //uv_alloc_cb is unused. This is here to mimick API similarity with libuv
 // XXX remove?
 int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb, uv_read_cb cb)
@@ -109,8 +106,21 @@ int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb, uv_read_cb cb)
     return evt_tls_read(ptr->tls, evt_on_rd);
 }
 
-
-int uv_tls_connect(uv_tls_t *t, evt_handshake_cb cb)
+static void on_hshake(evt_tls_t *etls, int status)
 {
-    return 0;
+    assert(etls != NULL);
+    uv_tls_t *ut = (uv_tls_t*)etls->data;
+    assert(ut != NULL && ut->tls_hsk_cb != NULL);
+    ut->tls_hsk_cb(ut, status - 1);
+}
+
+int uv_tls_connect(uv_tls_t *t, uv_handshake_cb cb)
+{
+    assert( t != NULL);
+    t->tls_hsk_cb = cb;
+    evt_tls_t *evt = t->tls;
+    assert( evt != NULL);
+
+    evt_tls_connect(evt, on_hshake);
+    return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
 }
