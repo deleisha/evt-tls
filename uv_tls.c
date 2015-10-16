@@ -24,9 +24,8 @@ int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
 
     endpt->tls = t;
     endpt->tls_rd_cb = NULL;
-    endpt->tls_cnct_cb = NULL;
     endpt->tls_cls_cb = NULL;
-    endpt->tls_accpt_cb = NULL;
+    endpt->tls_hsk_cb = NULL;
     return r;
 }
 
@@ -51,16 +50,16 @@ static void on_hd_complete( evt_tls_t *t, int status)
 {
 
     uv_tls_t *ut = (uv_tls_t*)t->data;
-    assert( ut != NULL && ut->tls_accpt_cb != NULL);
-    ut->tls_accpt_cb(ut, status -1);
+    assert( ut != NULL && ut->tls_hsk_cb != NULL);
+    ut->tls_hsk_cb(ut, status -1);
 }
 
 
-int uv_tls_accept(uv_tls_t *t, uv_accept_cb cb)
+int uv_tls_accept(uv_tls_t *t, uv_handshake_cb cb)
 {
     int rv = 0;
     assert( t != NULL);
-    t->tls_accpt_cb = cb;
+    t->tls_hsk_cb = cb;
     evt_tls_t *tls = t->tls;
     rv = evt_tls_accept(tls, on_hd_complete);
     uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);

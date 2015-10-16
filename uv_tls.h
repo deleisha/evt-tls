@@ -14,21 +14,20 @@ extern "C" {
 
 typedef struct uv_tls_s uv_tls_t;
 
-typedef void (*uv_accept_cb)(uv_tls_t*, int);
+typedef void (*uv_handshake_cb)(uv_tls_t*, int);
 
 struct uv_tls_s {
    uv_tcp_t skt;
    evt_tls_t *tls;
 
    uv_read_cb tls_rd_cb;
-   uv_connect_cb tls_cnct_cb;
    uv_close_cb tls_cls_cb;
-   uv_accept_cb tls_accpt_cb;
+   uv_handshake_cb tls_hsk_cb;
 };
 
 int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt);
 
-int uv_tls_accept(uv_tls_t *tls, uv_accept_cb cb);
+int uv_tls_accept(uv_tls_t *tls, uv_handshake_cb cb);
 int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb , uv_read_cb on_read);
 int uv_tls_close(uv_handle_t* session, uv_close_cb close_cb);
 
