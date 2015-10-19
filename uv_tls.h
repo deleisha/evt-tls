@@ -15,6 +15,7 @@ extern "C" {
 typedef struct uv_tls_s uv_tls_t;
 
 typedef void (*uv_handshake_cb)(uv_tls_t*, int);
+typedef void (*uv_tls_write_cb)(uv_tls_t*, int);
 
 struct uv_tls_s {
    uv_tcp_t skt;
@@ -23,6 +24,7 @@ struct uv_tls_s {
    uv_read_cb tls_rd_cb;
    uv_close_cb tls_cls_cb;
    uv_handshake_cb tls_hsk_cb;
+   uv_tls_write_cb tls_wr_cb;
 };
 
 
@@ -37,7 +39,7 @@ int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb , uv_read_cb on_read);
 int uv_tls_close(uv_handle_t* session, uv_close_cb close_cb);
 
 
-//int uv_tls_write(uv_write_t* req, uv_tls_t *client, uv_buf_t* buf, uv_write_cb cb);
+int uv_tls_write(uv_tls_t *stream, uv_buf_t* buf, uv_tls_write_cb cb);
 #ifdef __cpluplus
 }
 #endif //extern C

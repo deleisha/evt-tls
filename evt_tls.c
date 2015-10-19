@@ -203,8 +203,8 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             r = SSL_write(c->ssl, buf, sz);
             if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(c, tbuf);
-            if ( r > 0  &&  c->write_cb) {
-                c->write_cb(c, r);
+            if ( r > 0 && c->write_cb) {
+                    c->write_cb(c, r);
             }
             break;
         }

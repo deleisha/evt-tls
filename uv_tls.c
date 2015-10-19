@@ -32,6 +32,7 @@ int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
     endpt->tls_rd_cb = NULL;
     endpt->tls_cls_cb = NULL;
     endpt->tls_hsk_cb = NULL;
+    endpt->tls_wr_cb = NULL;
     return r;
 }
 
@@ -126,4 +127,21 @@ int uv_tls_connect(uv_tls_t *t, uv_handshake_cb cb)
 
     evt_tls_connect(evt, on_hshake);
     return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
+}
+
+void on_evt_write(evt_tls_t *tls, int status) {
+    assert( tls != NULL);
+    uv_tls_t *ut = (uv_tls_t*)tls->data;
+    assert( ut != NULL && ut->tls_wr_cb != NULL);
+    ut->tls_wr_cb(ut, status);
+}
+
+int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, uv_tls_write_cb cb)
+{
+    assert( stream != NULL);
+    stream->tls_wr_cb = cb;
+    evt_tls_t *evt = stream->tls;
+    assert( evt != NULL);
+
+    return evt_tls_write(evt, buf->base, buf->len, on_evt_write);
 }

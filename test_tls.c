@@ -1,10 +1,7 @@
 #include "uv_tls.h"
 
-void on_write(evt_tls_t *tls, int status) {
-    uv_tls_close((uv_handle_t*)tls->data, (uv_close_cb)free);
-}
-int uv_tls_write(uv_tls_t *stream, uv_buf_t *buf, evt_write_cb cb) {
-    return evt_tls_write(stream->tls, buf->base, buf->len, cb);
+void on_write(uv_tls_t *tls, int status) {
+    uv_tls_close((uv_handle_t*)&tls->skt, (uv_close_cb)free);
 }
 void uv_rd_cb( uv_stream_t *strm, ssize_t nrd, const uv_buf_t *bfr) {
     if ( nrd <= 0 ) return;
