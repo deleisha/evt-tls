@@ -39,6 +39,7 @@ static void tls_begin(void)
 
 evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
 {
+    int r = 0;
     evt_tls_t *con = malloc(sizeof(evt_tls_t));
     if ( !con ) {
         return NULL;
@@ -53,7 +54,15 @@ evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)
     con->ssl = ssl;
 
     //use default buf size for now.
-    BIO_new_bio_pair(&(con->ssl_bio), 0, &(con->app_bio), 0);
+    r = BIO_new_bio_pair(&(con->ssl_bio), 0, &(con->app_bio), 0);
+    if (r != 1) {
+        //order is important
+        SSL_free(ssl);
+        ssl = NULL;
+        free(con);
+        con = NULL;
+        return NULL;
+    }
 
     SSL_set_bio(con->ssl, con->ssl_bio, con->ssl_bio);
 
