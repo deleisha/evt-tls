@@ -238,7 +238,6 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
             c->close_cb(c, r);
         }
         return r;
-
 }
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
@@ -322,7 +321,6 @@ int evt_tls_free(evt_tls_t *tls)
     return 0;
 }
 
-//clean up calls
 void evt_ctx_free(evt_ctx_t *ctx)
 {
     QUEUE* qh;
