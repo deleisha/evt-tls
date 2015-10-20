@@ -94,21 +94,21 @@ int evt_ctx_set_crt_key(evt_ctx_t *tls, const char *crtf, const char *key)
 
     int r = SSL_CTX_use_certificate_file(tls->ctx, crtf, SSL_FILETYPE_PEM);
     if(r != 1) {
-        return -1;
+        return r;
     }
     tls->cert_set = 1;
 
     r = SSL_CTX_use_PrivateKey_file(tls->ctx, key, SSL_FILETYPE_PEM);
     if(r != 1) {
-        return -1;
+        return r;
     }
 
     r = SSL_CTX_check_private_key(tls->ctx);
     if(r != 1) {
-        return -1;
+        return r;
     }
     tls->key_set = 1;
-    return 0;
+    return 1;
 }
 
 int evt_ctx_init(evt_ctx_t *tls)
@@ -116,6 +116,8 @@ int evt_ctx_init(evt_ctx_t *tls)
     tls_begin();
 
     //Currently we support only TLS, No DTLS
+    //XXX SSLv23_method is deprecated change this,
+    //Allow evt_ctx_init to take the method as input param, allow others like dtls
     tls->ctx = SSL_CTX_new(SSLv23_method());
     if ( !tls->ctx ) {
         return ENOMEM;
