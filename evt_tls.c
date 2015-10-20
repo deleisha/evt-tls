@@ -332,8 +332,6 @@ void evt_ctx_free(evt_ctx_t *ctx)
     //clean all pending connections
     QUEUE_FOREACH(qh, &ctx->live_con) {
         tls = QUEUE_DATA(qh, evt_tls_t, q);
-        //force close all connections and clean
-        //XXX add code here for cleaning, wait for QUEUE_MOVE in libuv
         evt__tls__op(tls, EVT_TLS_OP_SHUTDOWN, NULL, 0);
     }
 
