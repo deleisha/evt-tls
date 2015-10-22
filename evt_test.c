@@ -1,6 +1,16 @@
+
+//%LICENSE////////////////////////////////////////////////////////////////////
+//
+// Copyright (c) 2015 Devchandra M. Leishangthem (dlmeetei at gmail dot com)
+//
+// Distributed under the MIT License (See accompanying file LICENSE)
+//
+//////////////////////////////////////////////////////////////////////////
+//
+//%///////////////////////////////////////////////////////////////////////////
+
 #include <stdio.h>
 #include <assert.h>
-
 #include "evt_tls.h"
 
 typedef struct test_tls_s test_tls_t;
@@ -160,7 +170,6 @@ int main()
     assert( 1 == evt_ctx_is_crtf_set(&tls));
     assert( 1 == evt_ctx_is_key_set(&tls));
 
-
     assert(tls.writer == NULL);
     evt_ctx_set_writer(&tls, test_net_wrtr);
     assert(tls.writer != NULL);
@@ -168,10 +177,8 @@ int main()
     test_tls_t clnt_hdl;
     test_tls_init( &tls, &clnt_hdl);
 
-
     test_tls_t svc_hdl;
     test_tls_init( &tls, &svc_hdl);
-
 
     test_tls_connect(&clnt_hdl, on_connect);
     test_tls_accept(&svc_hdl, on_accept);

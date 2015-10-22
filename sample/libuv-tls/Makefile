@@ -11,7 +11,6 @@ evt:
 	cd libuv && python gyp_uv.py
 	make -C ./libuv/out
 	clang -g -Wall -o $@ -I $(ROOT)/ test_tls.c $(ROOT)/evt_tls.c uv_tls.c $(LIB_2_LINK)
-	-cp -fv $@ $(ROOT)
         
 clean:
 	-rm -fv evt

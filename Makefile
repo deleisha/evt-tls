@@ -1,8 +1,6 @@
 all: clean evt test_evt gen_cert test
 evt:
-	cd libuv && python gyp_uv.py
-	make -C ./libuv/out
-	clang -g -Wall -o $@ test_tls.c evt_tls.c uv_tls.c -lssl -lcrypto -lrt libuv/out/Debug/libuv.a -ldl -lpthread
+	make -C sample/libuv-tls evt
 
 gen_cert:
 	openssl req -x509 -newkey rsa:2048 -nodes -keyout server-key.pem  \
@@ -15,5 +13,5 @@ test:
 	./test_evt
 
 clean:
-	-rm evt
+	make -C sample/libuv-tls clean
 	-rm test_evt
