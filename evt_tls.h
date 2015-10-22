@@ -90,32 +90,61 @@ int evt_ctx_init(evt_ctx_t *tls);
 This apart from configuring state machine also set up cert and key */
 int evt_ctx_init_ex(evt_ctx_t *tls, const char *crtf, const char *key);
 
-/* set the certifcate and key in order */
+/* set the certifcate and key in orderi. This need more breakup */
+
 int evt_ctx_set_crt_key(evt_ctx_t *tls, const char *crtf, const char *key);
 
-/* test if the certificate */
+/* test if the certificate is set*/
 int evt_ctx_is_crtf_set(evt_ctx_t *t);
 
 /* test if the key is set */
 int evt_ctx_is_key_set(evt_ctx_t *t);
 
+/*get a new async tls endpoint from tls engine */
 evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng);
+
+/*evt-tls is based on BIO pair wherein user takes control of network io
+writer and reader(currently untested) is responsible for networt io. This
+set up the writer and reader which is inherited by all endpoints */
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer);
 void evt_ctx_set_reader(evt_ctx_t *ctx, net_rdr my_reader);
 void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer);
+
+/*clean up the resources held by async tls engine, This also closes endpoints
+if any left */
 void evt_ctx_free(evt_ctx_t *ctx);
 
 
+/*entry point to the tls world, Call this function whenever network read happen
+Experimental state with network reader concept, but this is tested*/
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 
+/*set up the writer and reader which is inherited by all endpoints */
 void evt_tls_set_writer(evt_tls_t *tls, net_wrtr my_writer);
 void evt_tls_set_reader(evt_tls_t *tls, net_rdr my_reader);
 
+/*Perform a handshake for client role endpoint, equivalent of `SSL_connect`
+Upon completion, `evt_handshake_cb is called, status == 0 for failure and
+1 otherwise */
 int evt_tls_connect(evt_tls_t *con, evt_handshake_cb cb);
+
+/*Perform a handshake for server role endpoint, equivalent of `SSL_accept`
+Upon completion, `evt_handshake_cb is called, status == 0 for failure and
+1 otherwise */
 int evt_tls_accept( evt_tls_t *tls, evt_handshake_cb cb);
+
+
+/*Perform wrapping of text and do network write, `evt_write_cb` is called on
+completion and status is used for status */
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
+
+/*Perform a unwrapping of network received data, equivalent of `SSL_read` and
+`evt_read_cb is called on completion */
 int evt_tls_read(evt_tls_t *c, evt_read_cb on_read );
+/* equivalent of SSL_shutwdown, This performs Two-way SSL_dhutdown */
 int evt_tls_close(evt_tls_t *c, evt_close_cb cls);
+
+/*XXX: should not be API, should be performed by evt_tls_close */
 int evt_tls_free(evt_tls_t *tls);
 
 
@@ -132,14 +161,16 @@ enum evt_endpt_t {
 };
 typedef enum evt_endpt_t evt_endpt_t;
 
+/*Tells if the tls endpoint is client or server */
 evt_endpt_t evt_tls_get_role(const evt_tls_t *t);
 
+/* set role to endpoint either server role or client role */
 void evt_tls_set_role(evt_tls_t *t, enum evt_endpt_t role);
 
-//Gives the ptr to SSL_CTX usable raw openSSL programming
+/*Gives the ptr to SSL_CTX usable raw openSSL programming */
 SSL_CTX *evt_get_SSL_CTX(const evt_ctx_t *ctx);
 
-//Gives the ssl usable for doing raw OpenSSL programming
+/*Gives the ssl usable for doing raw OpenSSL programming */
 SSL *evt_get_ssl(const evt_tls_t *tls);
 
 
