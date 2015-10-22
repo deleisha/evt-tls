@@ -20,8 +20,9 @@ void on_connect_cb(uv_stream_t *server, int status) {
         free(sclient);
         return;
     }
-    if (!uv_accept(server, (uv_stream_t*)&(sclient->skt)))
+    if (!uv_accept(server, (uv_stream_t*)&(sclient->skt))) {
         uv_tls_accept(sclient, on_uv_handshake);
+    }
 }
 int main() {
     uv_loop_t *loop = uv_default_loop();

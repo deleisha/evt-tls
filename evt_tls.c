@@ -82,11 +82,24 @@ void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer)
     assert( ctx->writer != NULL);
 }
 
+void evt_tls_set_writer(evt_tls_t *tls, net_wrtr my_writer)
+{
+    tls->writer = my_writer;
+    assert( tls->writer != NULL);
+}
+
 void evt_ctx_set_reader(evt_ctx_t *ctx, net_rdr my_reader)
 {
     ctx->reader = my_reader;
     //assert( ctx->reader != NULL);
 }
+
+void evt_tls_set_reader(evt_tls_t *tls, net_rdr my_reader)
+{
+    tls->reader = my_reader;
+    //assert( ctx->reader != NULL);
+}
+
 
 void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer)
 {
@@ -129,7 +142,7 @@ int evt_ctx_init(evt_ctx_t *tls)
     //Allow evt_ctx_init to take the method as input param, allow others like dtls
     tls->ctx = SSL_CTX_new(SSLv23_method());
     if ( !tls->ctx ) {
-        return ENOMEM;
+        return -1;
     }
 
     long options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;

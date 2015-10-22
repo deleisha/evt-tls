@@ -108,6 +108,9 @@ void evt_ctx_free(evt_ctx_t *ctx);
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 
+void evt_tls_set_writer(evt_tls_t *tls, net_wrtr my_writer);
+void evt_tls_set_reader(evt_tls_t *tls, net_rdr my_reader);
+
 int evt_tls_connect(evt_tls_t *con, evt_handshake_cb cb);
 int evt_tls_accept( evt_tls_t *tls, evt_handshake_cb cb);
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
