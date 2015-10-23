@@ -5,6 +5,7 @@ evt:
 gen_cert:
 	openssl req -x509 -newkey rsa:2048 -nodes -keyout server-key.pem  \
         -out server-cert.pem -config ssl_test.cnf
+	-cp -rf server-cert.pem server-key.pem sample/libuv-tls/
 
 test_evt:
 	clang -g -Wall -o $@ evt_test.c evt_tls.c -lssl -lcrypto -lrt
