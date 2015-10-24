@@ -8,7 +8,7 @@ gen_cert:
 	-cp -rf server-cert.pem server-key.pem sample/libuv-tls/
 
 test_evt:
-	clang -g -Wall -o $@ evt_test.c evt_tls.c -lssl -lcrypto -lrt
+	$(CC) -g -Wall -o $@ evt_test.c evt_tls.c -lssl -lcrypto -lrt
 
 test:
 	./test_evt

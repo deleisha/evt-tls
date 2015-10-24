@@ -95,6 +95,7 @@ void on_connect(evt_tls_t *tls, int status)
 	char msg[] = "Hello from event based tls engine\n";
 	int str_len = sizeof(msg);
 	r =  evt_tls_write(tls, msg, str_len, on_write);
+        assert( r = str_len);
     }
     else { //handle ssl_shutdown
         test_tls_close((test_tls_t*)tls, cls);

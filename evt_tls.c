@@ -218,6 +218,7 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
         case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(c->ssl);
             bytes = evt__send_pending(c, tbuf);
+            assert( bytes >= 0);
             if (1 == r || 0 == r) {
                 assert(c->hshake_cb != NULL );
                 c->hshake_cb(c, r);
