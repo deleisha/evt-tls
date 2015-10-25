@@ -1,4 +1,3 @@
-
 //%LICENSE////////////////////////////////////////////////////////////////////
 //
 // Copyright (c) 2015 Devchandra M. Leishangthem (dlmeetei at gmail dot com)
@@ -183,6 +182,12 @@ SSL_CTX *evt_get_SSL_CTX(const evt_ctx_t *ctx);
 
 /*Gives the ssl usable for doing raw OpenSSL programming */
 SSL *evt_get_ssl(const evt_tls_t *tls);
+
+
+/*check if incoming data is TLS clientHello.
+return 1 if the stream is TLS and 0 otherwise
+*/
+int is_tls_stream(const char *bfr, const ssize_t nrd);
 
 
 #ifdef __cplusplus 

@@ -1,4 +1,3 @@
-
 //%LICENSE////////////////////////////////////////////////////////////////////
 //
 // Copyright (c) 2015 Devchandra M. Leishangthem (dlmeetei at gmail dot com)
@@ -369,4 +368,25 @@ void evt_ctx_free(evt_ctx_t *ctx)
     sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
     //SSL_COMP_free_compression_methods();
     CRYPTO_cleanup_all_ex_data();
+}
+
+
+// adapted from Openssl's s23_srvr.c code
+int is_tls_stream(const char *bfr, const ssize_t nrd)
+{
+    int is_tls = 0;
+    assert( nrd >= 11);
+    if ((bfr[0] & 0x80) && (bfr[2] == 1)) // SSL2_MT_CLIENT_HELLO
+    {
+        // SSLv2
+        is_tls = 1;
+    }
+    if ( (bfr[0] == 0x16 ) && (bfr[1] == 0x03)  && (bfr[5] == 1)  &&
+         ((bfr[3] == 0 && bfr[4] < 5) || (bfr[9] == bfr[1]))
+       )
+    {
+        //SSLv3 and above
+        is_tls = 1;
+    }
+    return is_tls;
 }

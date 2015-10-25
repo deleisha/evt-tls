@@ -58,6 +58,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
         free(data->base);
         return;
     }
+
     evt_tls_feed_data(parent->tls, data->base, nrd);
     free(data->base);
 }
