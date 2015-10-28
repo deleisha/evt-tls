@@ -41,6 +41,7 @@ int main() {
     int port = 8000, r = 0;
     evt_ctx_t ctx;
     struct sockaddr_in bind_addr;
+    struct sockaddr_in bind_local;
 
     evt_ctx_init_ex(&ctx, "server-cert.pem", "server-key.pem");
     evt_ctx_set_nio(&ctx, NULL, uv_tls_writer);
@@ -48,10 +49,22 @@ int main() {
     uv_tcp_init(loop, &listener);
     listener.data = &ctx;
 
-    uv_ip4_addr("0.0.0.0", port, &bind_addr);
+    uv_ip4_addr("192.168.42.36", port, &bind_addr);
     if ((r = uv_tcp_bind(&listener, (struct sockaddr*)&bind_addr, 0)))
         fprintf( stderr, "bind: %s\n", uv_strerror(r));
+
+
     if ((r = uv_listen((uv_stream_t*)&listener, 128, on_connect_cb)))
+        fprintf( stderr, "listen: %s\n", uv_strerror(r));
+
+    uv_tcp_t listener_local;
+    uv_tcp_init(loop, &listener_local);
+    listener_local.data = &ctx;
+    uv_ip4_addr("127.0.0.1", port, &bind_local);
+    if ((r = uv_tcp_bind(&listener_local, (struct sockaddr*)&bind_local, 0)))
+        fprintf( stderr, "bind: %s\n", uv_strerror(r));
+
+    if ((r = uv_listen((uv_stream_t*)&listener_local, 128, on_connect_cb)))
         fprintf( stderr, "listen: %s\n", uv_strerror(r));
     printf("Listening on %d\n", port);
     uv_run(loop, UV_RUN_DEFAULT);

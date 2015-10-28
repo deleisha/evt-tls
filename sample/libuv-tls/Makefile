@@ -14,4 +14,3 @@ evt:
         
 clean:
 	-rm -fv evt
-	-rm -fv server-cert.pem server-key.pem
