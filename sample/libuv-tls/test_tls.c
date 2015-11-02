@@ -45,17 +45,6 @@ int main() {
 
     evt_ctx_init_ex(&ctx, "server-cert.pem", "server-key.pem");
     evt_ctx_set_nio(&ctx, NULL, uv_tls_writer);
-    uv_tcp_t listener;
-    uv_tcp_init(loop, &listener);
-    listener.data = &ctx;
-
-    uv_ip4_addr("192.168.42.36", port, &bind_addr);
-    if ((r = uv_tcp_bind(&listener, (struct sockaddr*)&bind_addr, 0)))
-        fprintf( stderr, "bind: %s\n", uv_strerror(r));
-
-
-    if ((r = uv_listen((uv_stream_t*)&listener, 128, on_connect_cb)))
-        fprintf( stderr, "listen: %s\n", uv_strerror(r));
 
     uv_tcp_t listener_local;
     uv_tcp_init(loop, &listener_local);
