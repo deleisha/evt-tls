@@ -58,7 +58,6 @@ int main() {
         fprintf( stderr, "listen: %s\n", uv_strerror(r));
     printf("Listening on %d\n", port);
     uv_run(loop, UV_RUN_DEFAULT);
-    evt_ctx_free(&ctx);
     return 0;
 }
 ```
