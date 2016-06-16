@@ -12,7 +12,7 @@
 #ifndef UV_TLS_H
 #define UV_TLS_H
 
-#ifdef __cpluplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 #include "evt_tls.h"
@@ -51,7 +51,7 @@ int uv_tls_close(uv_handle_t* session, uv_close_cb close_cb);
 
 
 int uv_tls_write(uv_tls_t *stream, uv_buf_t* buf, uv_tls_write_cb cb);
-#ifdef __cpluplus
+#ifdef __cplusplus
 }
 #endif //extern C
 
