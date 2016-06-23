@@ -40,7 +40,6 @@ int main() {
     uv_loop_t *loop = uv_default_loop();
     int port = 8000, r = 0;
     evt_ctx_t ctx;
-    struct sockaddr_in bind_addr;
     struct sockaddr_in bind_local;
 
     evt_ctx_init_ex(&ctx, "server-cert.pem", "server-key.pem");
