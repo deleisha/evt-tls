@@ -58,7 +58,20 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
         return;
     }
 
-    evt_tls_feed_data(parent->tls, data->base, nrd);
+    static int is_tls = 0;
+    static int is_first = 1;
+    if (is_first) {
+        if (is_tls_stream(data->base, nrd)) {
+            evt_tls_feed_data(parent->tls, data->base, nrd);
+            is_tls = 1;
+        }
+        is_first = 0;
+    }
+    else {
+        if(is_tls) {
+            evt_tls_feed_data(parent->tls, data->base, nrd);
+        }
+    }
     free(data->base);
 }
 
