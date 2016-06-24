@@ -35,6 +35,10 @@ typedef int (*net_wrtr)(evt_tls_t *tls, void *edata, int len);
 typedef int (*net_rdr)(evt_tls_t *tls, void *edata, int len);
 
 
+/*
+ * The TLS context, similar to openSSL's SSl_CTX
+*/
+
 typedef struct evt_ctx_s
 {
     //find better place for it , should be one time init
@@ -114,8 +118,9 @@ int evt_ctx_is_key_set(evt_ctx_t *t);
 evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng);
 
 /*evt-tls is based on BIO pair wherein user takes control of network io
-writer and reader(currently untested) is responsible for networt io. This
-set up the writer and reader which is inherited by all endpoints */
+writer(tested) and reader(currently untested) is responsible for networt io.
+This set up the writer and reader which is inherited by all endpoints
+*/
 void evt_ctx_set_writer(evt_ctx_t *ctx, net_wrtr my_writer);
 void evt_ctx_set_reader(evt_ctx_t *ctx, net_rdr my_reader);
 void evt_ctx_set_nio(evt_ctx_t *ctx, net_rdr my_reader, net_wrtr my_writer);
@@ -129,7 +134,7 @@ void evt_ctx_free(evt_ctx_t *ctx);
 Experimental state with network reader concept, but this is tested*/
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 
-/*set up the writer and reader which is inherited by all endpoints */
+/*set up the writer and reader for this particular endpoint*/
 void evt_tls_set_writer(evt_tls_t *tls, net_wrtr my_writer);
 void evt_tls_set_reader(evt_tls_t *tls, net_rdr my_reader);
 

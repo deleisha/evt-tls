@@ -149,7 +149,8 @@ int evt_ctx_init(evt_ctx_t *tls)
 
     //Currently we support only TLS, No DTLS
     //XXX SSLv23_method is deprecated change this,
-    //Allow evt_ctx_init to take the method as input param, allow others like dtls
+    //Allow evt_ctx_init to take the method as input param,
+    //allow others like dtls
     tls->ctx = SSL_CTX_new(SSLv23_method());
     if ( !tls->ctx ) {
         return -1;
@@ -194,22 +195,22 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
     return t->key_set;
 }
 
-static int evt__send_pending(evt_tls_t *c, void *buf)
+static int evt__send_pending(evt_tls_t *conn, void *buf)
 {
-    assert( c != NULL);
-    int pending = BIO_pending(c->app_bio);
+    assert( conn != NULL);
+    int pending = BIO_pending(conn->app_bio);
     if ( !(pending > 0) )
         return 0;
 
-    int p = BIO_read(c->app_bio, buf, pending);
+    int p = BIO_read(conn->app_bio, buf, pending);
     assert(p == pending);
 
-    assert( c->writer != NULL && "You need to set network writer first");
-    p = c->writer(c, buf, p);
+    assert( conn->writer != NULL && "You need to set network writer first");
+    p = conn->writer(conn, buf, p);
     return p;
 }
 
-static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
+static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 {
     int r = 0;
     int bytes = 0;
@@ -217,31 +218,31 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
 
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
-            r = SSL_do_handshake(c->ssl);
-            bytes = evt__send_pending(c, tbuf);
+            r = SSL_do_handshake(conn->ssl);
+            bytes = evt__send_pending(conn, tbuf);
             assert( bytes >= 0);
             if (1 == r || 0 == r) {
-                assert(c->hshake_cb != NULL );
-                c->hshake_cb(c, r);
+                assert(conn->hshake_cb != NULL );
+                conn->hshake_cb(conn, r);
             }
             break;
         }
 
         case EVT_TLS_OP_READ: {
-            r = SSL_read(c->ssl, tbuf, sizeof(tbuf));
-            bytes = evt__send_pending(c, tbuf);
-            assert(c->read_cb != NULL);
-            c->read_cb(c, tbuf, r);
+            r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
+            bytes = evt__send_pending(conn, tbuf);
+            assert(conn->read_cb != NULL);
+            conn->read_cb(conn, tbuf, r);
             break;
         }
 
         case EVT_TLS_OP_WRITE: {
-            assert( sz > 0 && "number of bytes to write shouls be positive");
-            r = SSL_write(c->ssl, buf, sz);
+            assert( sz > 0 && "number of bytes to write should be positive");
+            r = SSL_write(conn->ssl, buf, sz);
             if ( 0 == r) goto handle_shutdown;
-            bytes = evt__send_pending(c, tbuf);
-            if ( r > 0 && c->write_cb) {
-                    c->write_cb(c, r);
+            bytes = evt__send_pending(conn, tbuf);
+            if ( r > 0 && conn->write_cb) {
+                    conn->write_cb(conn, r);
             }
             break;
         }
@@ -258,10 +259,10 @@ static int evt__tls__op(evt_tls_t *c, enum tls_op_type op, void *buf, int sz)
     return r;
 
     handle_shutdown:
-        r = SSL_shutdown(c->ssl);
-        bytes = evt__send_pending(c, tbuf);
-        if ( (1 == r)  && c->close_cb ) {
-            c->close_cb(c, r);
+        r = SSL_shutdown(conn->ssl);
+        bytes = evt__send_pending(conn, tbuf);
+        if ( (1 == r)  && conn->close_cb ) {
+            conn->close_cb(conn, r);
         }
         return r;
 }
