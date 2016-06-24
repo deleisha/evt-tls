@@ -307,11 +307,6 @@ int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
     return evt__tls__op(c, EVT_TLS_OP_WRITE, msg, str_len);
 }
 
-int evt_tls_encrypt(evt_tls_t *c, void *msg, int sz)
-{
-    return 0;
-}
-
 // read only register the callback to be made
 int evt_tls_read(evt_tls_t *c, evt_read_cb on_read)
 {
