@@ -38,7 +38,6 @@ void on_connect(uv_connect_t *req, int status)
         free(sclient);
         return;
     }
-
     uv_tls_connect(sclient, on_tls_handshake);
 }
 
@@ -56,7 +55,7 @@ int main()
 
 
     struct sockaddr_in conn_addr;
-    int r = uv_ip4_addr("127.0.0.1", port, &conn_addr);
+    uv_ip4_addr("127.0.0.1", port, &conn_addr);
 
     uv_connect_t req;
     req.data = &ctx;

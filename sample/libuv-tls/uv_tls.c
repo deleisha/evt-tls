@@ -20,10 +20,15 @@ static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 }
 
 int uv_tls_writer(evt_tls_t *t, void *bfr, int sz) {
+    int rv = 0;
     uv_buf_t b;
     b.base = bfr;
     b.len = sz;
-    return uv_try_write(t->data, &b, 1);
+    uv_tls_t *uvt = t->data;
+    if(uv_is_writable((uv_stream_t*)&(uvt->skt)) ) {
+        rv = uv_try_write((uv_stream_t*)&(uvt->skt), &b, 1);
+    }
+    return rv;
 }
 
 int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
