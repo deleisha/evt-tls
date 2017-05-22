@@ -14,7 +14,11 @@
 evt_endpt_t evt_tls_get_role(const evt_tls_t *t)
 {
     assert(t != NULL);
+#if OPENSSL_VERSION_NUMBER < 0x10002000L
     return t->ssl->server ? ENDPT_IS_SERVER : ENDPT_IS_CLIENT;
+#else
+    return SSL_is_server(t->ssl) ? ENDPT_IS_SERVER : ENDPT_IS_CLIENT;
+#endif
 }
 
 void evt_tls_set_role(evt_tls_t *t, evt_endpt_t role)
