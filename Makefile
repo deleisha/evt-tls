@@ -1,4 +1,7 @@
-all: clean evt test_evt gen_cert test
+all: clean test_evt gen_cert test
+
+#This target needs libuv to be built, check www.libuv.org for building it
+#
 evt:
 	make -C sample/libuv-tls evt
 
