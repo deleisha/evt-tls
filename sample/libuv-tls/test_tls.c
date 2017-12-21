@@ -11,7 +11,7 @@
 #include "uv_tls.h"
 
 void on_write(uv_tls_t *tls, int status) {
-    uv_tls_close((uv_handle_t*)&tls->skt, (uv_close_cb)free);
+    uv_tls_close((uv_handle_t*)tls->tcp_hdl, (uv_close_cb)free);
 }
 void uv_rd_cb( uv_stream_t *strm, ssize_t nrd, const uv_buf_t *bfr) {
     if ( nrd <= 0 ) return;
@@ -25,14 +25,20 @@ void on_uv_handshake(uv_tls_t *ut, int status) {
 }
 void on_connect_cb(uv_stream_t *server, int status) {
     if( status ) return;
+    uv_tcp_t *tcp = malloc(sizeof(*tcp)); //freed on uv_close callback
+    uv_tcp_init(uv_default_loop(), tcp);
+    if (uv_accept(server, (uv_stream_t*)tcp)) {
+        return;
+    }
+
     uv_tls_t *sclient = malloc(sizeof(*sclient)); //freed on uv_close callback
-    if( uv_tls_init(server->loop, (evt_ctx_t*)server->data, sclient) < 0 ) {
+    if( uv_tls_init((evt_ctx_t*)server->data, tcp, sclient) < 0 ) {
         free(sclient);
         return;
     }
-    if (!uv_accept(server, (uv_stream_t*)&(sclient->skt))) {
-        uv_tls_accept(sclient, on_uv_handshake);
-    }
+    uv_tls_accept(sclient, on_uv_handshake);
+
+
 }
 
 int main() {

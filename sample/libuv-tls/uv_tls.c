@@ -25,35 +25,44 @@ int uv_tls_writer(evt_tls_t *t, void *bfr, int sz) {
     b.base = bfr;
     b.len = sz;
     uv_tls_t *uvt = t->data;
-    if(uv_is_writable((uv_stream_t*)&(uvt->skt)) ) {
-        rv = uv_try_write((uv_stream_t*)&(uvt->skt), &b, 1);
+    if(uv_is_writable((uv_stream_t*)(uvt->tcp_hdl)) ) {
+        rv = uv_try_write((uv_stream_t*)(uvt->tcp_hdl), &b, 1);
     }
     return rv;
 }
 
-int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
+//int uv_tls_init(uv_loop_t *loop, evt_ctx_t *ctx, uv_tls_t *endpt)
+//the tcp handle being passed should have been initialized or does not required
+//to be initialized as uv_tls_init will not call uv_tcp_init
+int uv_tls_init(evt_ctx_t *ctx, uv_tcp_t *tcp, uv_tls_t *endpt)
 {
     int r = 0;
     memset( endpt, 0, sizeof *endpt);
 
-    r = uv_tcp_init(loop, &(endpt->skt));
+    //r = uv_tcp_init(loop, &(endpt->tcp_hdl));
 
     evt_tls_t *t = evt_ctx_get_tls(ctx);
+
+    //Replace the NULL with a meaningful error later
     assert( t != NULL );
 
     t->data = endpt;
+    tcp->data = endpt;
 
-    endpt->tls = t;
-    endpt->tls_rd_cb = NULL;
+    endpt->tcp_hdl    = tcp;
+    endpt->tls        = t;
+    endpt->tls_rd_cb  = NULL;
     endpt->tls_cls_cb = NULL;
     endpt->tls_hsk_cb = NULL;
-    endpt->tls_wr_cb = NULL;
+    endpt->tls_wr_cb  = NULL;
     return r;
 }
 
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 {
-    uv_tls_t *parent = CONTAINER_OF(stream, uv_tls_t, skt);
+    //uv_tls_t *parent = CONTAINER_OF(stream, uv_tls_t, tcp_hdl);
+    uv_tls_t *parent = (uv_tls_t*)stream->data;
+
     assert( parent != NULL);
     if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
@@ -95,7 +104,7 @@ int uv_tls_accept(uv_tls_t *t, uv_handshake_cb cb)
     t->tls_hsk_cb = cb;
     evt_tls_t *tls = t->tls;
     rv = evt_tls_accept(tls, on_hd_complete);
-    uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
+    uv_read_start((uv_stream_t*)(t->tcp_hdl), alloc_cb, on_tcp_read);
     return rv;
 }
 
@@ -118,13 +127,13 @@ void on_close(evt_tls_t *tls, int status)
     assert( ut->tls_cls_cb != NULL);
 
     evt_tls_free(tls);
-    if ( !uv_is_closing((uv_handle_t*)&(ut->skt)))
-        uv_close( (uv_handle_t*)&(ut->skt), ut->tls_cls_cb);
+    if ( !uv_is_closing((uv_handle_t*)(ut->tcp_hdl)))
+        uv_close( (uv_handle_t*)(ut->tcp_hdl), ut->tls_cls_cb);
 }
 
 int uv_tls_close(uv_handle_t *strm,  uv_close_cb cb)
 {
-    uv_tls_t *t = (uv_tls_t*)strm;
+    uv_tls_t *t = (uv_tls_t*)strm->data;
     t->tls_cls_cb = cb;
 
     return evt_tls_close(t->tls, on_close);
@@ -155,7 +164,7 @@ int uv_tls_connect(uv_tls_t *t, uv_handshake_cb cb)
     assert( evt != NULL);
 
     evt_tls_connect(evt, on_hshake);
-    return uv_read_start((uv_stream_t*)&(t->skt), alloc_cb, on_tcp_read);
+    return uv_read_start((uv_stream_t*)(t->tcp_hdl), alloc_cb, on_tcp_read);
 }
 
 void on_evt_write(evt_tls_t *tls, int status) {
