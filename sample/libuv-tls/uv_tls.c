@@ -60,7 +60,6 @@ int uv_tls_init(evt_ctx_t *ctx, uv_tcp_t *tcp, uv_tls_t *endpt)
 
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 {
-    //uv_tls_t *parent = CONTAINER_OF(stream, uv_tls_t, tcp_hdl);
     uv_tls_t *parent = (uv_tls_t*)stream->data;
 
     assert( parent != NULL);
@@ -71,21 +70,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
         free(data->base);
         return;
     }
-
-    static int is_tls = 0;
-    static int is_first = 1;
-    if (is_first) {
-        if (is_tls_stream(data->base, nrd)) {
-            evt_tls_feed_data(parent->tls, data->base, nrd);
-            is_tls = 1;
-        }
-        is_first = 0;
-    }
-    else {
-        if(is_tls) {
-            evt_tls_feed_data(parent->tls, data->base, nrd);
-        }
-    }
+    evt_tls_feed_data(parent->tls, data->base, nrd);
     free(data->base);
 }
 
