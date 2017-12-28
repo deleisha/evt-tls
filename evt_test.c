@@ -106,9 +106,9 @@ void on_connect(evt_tls_t *tls, int status)
 int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
 {
     static int first_time = 1;
-    if (test_data.stalled || first_time == 1) {
-        memset(&test_data, 0, sizeof(test_data));
+    if ((test_data.stalled) || (first_time == 1)) {
         first_time = 0;
+        memset(&test_data, 0, sizeof(test_data));
         memcpy(test_data.data, buf, sz);
         test_data.sz = sz;
         test_data.stalled = 0;
