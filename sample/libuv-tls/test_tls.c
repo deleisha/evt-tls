@@ -11,19 +11,19 @@
 #include "uv_tls.h"
 
 void on_write(uv_tls_t *tls, int status) {
-    uv_tls_close((uv_handle_t*)tls->tcp_hdl, (uv_close_cb)free);
+    uv_tls_close(tls, (uv_tls_close_cb)free);
 }
 
-void uv_rd_cb( uv_stream_t *strm, ssize_t nrd, const uv_buf_t *bfr) {
+void uv_rd_cb( uv_tls_t *strm, ssize_t nrd, const uv_buf_t *bfr) {
     if ( nrd <= 0 ) return;
-    uv_tls_write((uv_tls_t*)strm, (uv_buf_t*)bfr, on_write);
+    uv_tls_write(strm, (uv_buf_t*)bfr, on_write);
 }
 
 void on_uv_handshake(uv_tls_t *ut, int status) {
     if ( 0 == status )
-        uv_tls_read((uv_stream_t*)ut, NULL, uv_rd_cb);
+        uv_tls_read(ut, uv_rd_cb);
     else
-        uv_tls_close((uv_handle_t*)ut, (uv_close_cb)free);
+        uv_tls_close(ut, (uv_tls_close_cb)free);
 }
 
 void on_connect_cb(uv_stream_t *server, int status) {

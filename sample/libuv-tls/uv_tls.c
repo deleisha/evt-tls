@@ -65,7 +65,7 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
     assert( parent != NULL);
     if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
-            uv_tls_close((uv_handle_t*)stream, (uv_close_cb)free);
+            uv_tls_close(parent, (uv_tls_close_cb)free);
         }
         free(data->base);
         return;
@@ -102,31 +102,35 @@ static void evt_on_rd(evt_tls_t *t, char *bfr, int sz)
     data.len = sz;
 
     assert(tls->tls_rd_cb != NULL);
-    tls->tls_rd_cb((uv_stream_t*)tls, sz, &data);
+    tls->tls_rd_cb(tls, sz, &data);
+}
+
+void my_uclose_cb(uv_handle_t *handle)
+{
+    uv_tls_t *utls = (uv_tls_t*)handle->data;
+    assert( utls->tls_cls_cb != NULL);
+    utls->tls_cls_cb(utls);
+    free(handle);
 }
 
 void on_close(evt_tls_t *tls, int status)
 {
-    assert(1 == status);
     uv_tls_t *ut = (uv_tls_t*)tls->data;
     assert( ut->tls_cls_cb != NULL);
 
     evt_tls_free(tls);
     if ( !uv_is_closing((uv_handle_t*)(ut->tcp_hdl)))
-        uv_close( (uv_handle_t*)(ut->tcp_hdl), ut->tls_cls_cb);
+        uv_close( (uv_handle_t*)(ut->tcp_hdl), my_uclose_cb);
 }
 
-int uv_tls_close(uv_handle_t *strm,  uv_close_cb cb)
+int uv_tls_close(uv_tls_t *strm,  uv_tls_close_cb cb)
 {
-    uv_tls_t *t = (uv_tls_t*)strm->data;
-    t->tls_cls_cb = cb;
+    strm->tls_cls_cb = cb;
 
-    return evt_tls_close(t->tls, on_close);
+    return evt_tls_close(strm->tls, on_close);
 }
 
-//uv_alloc_cb is unused. This is here to mimick API similarity with libuv
-// XXX remove?
-int uv_tls_read(uv_stream_t *tls, uv_alloc_cb alloc_cb, uv_read_cb cb)
+int uv_tls_read(uv_tls_t *tls, uv_tls_read_cb cb)
 {
     uv_tls_t *ptr = (uv_tls_t*)tls;
     ptr->tls_rd_cb = cb;
