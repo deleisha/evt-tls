@@ -1,7 +1,6 @@
 all: clean test_evt gen_cert test
 
 #This target needs libuv to be built, check www.libuv.org for building it
-#
 evt:
 	make -C sample/libuv-tls evt
 
@@ -11,7 +10,7 @@ gen_cert:
 	-cp -rf server-cert.pem server-key.pem sample/libuv-tls/
 
 test_evt:
-	$(CC) -g -Wall -o $@ evt_test.c evt_tls.c -lssl -lcrypto -lrt
+	$(CC) -g -Wall -o $@ -Iapi evt_test.c evt_tls.c -lssl -lcrypto -lrt
 
 test:
 	./test_evt
