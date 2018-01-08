@@ -12,6 +12,11 @@ gen_cert:
 test_evt:
 	$(CC) -g -Wall -o $@ -Iapi -I./ evt_test.c src/evt_tls.c -lssl -lcrypto -lrt
 
+mbtls:
+	$(CC) -g -Wall -o $@ -Iapi -I./ main.c  -lmbedtls
+
+
+
 test:
 	./test_evt
 
