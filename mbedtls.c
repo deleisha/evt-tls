@@ -21,6 +21,23 @@ typedef struct evt_tls_t
 } evt_tls_t;
 
 
+
+#define mbedtls_printf printf
+#define MBEDTLS_DEBUG_LEVEL 4
+const char * pers = "test mbedtls server";
+void my_debug()
+{
+}
+
+
+
+void handshake_cb(evt_tls_t *evt, int status)
+{
+    printf("Evt: Handshake done\n");
+
+}
+
+
 void evt_tls_init(evt_tls_t *evt)
 {
     mbedtls_net_init( &(evt->server_fd) );
@@ -42,18 +59,48 @@ void evt_tls_deinit(evt_tls_t *evt)
     mbedtls_x509_crt_free( &(evt->srvcert) );
     mbedtls_pk_free( &(evt->pkey) );
 }
+typedef void (evt_handshake_cb)(evt_tls_t *, int status);
 
-#define mbedtls_printf printf
-const char * pers = "test mbedtls server";
-void my_debug()
+int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
 {
+    int ret  = 0;
+    if( mbedtls_ssl_config_defaults( &(evt->conf),
+            MBEDTLS_SSL_IS_SERVER,
+            MBEDTLS_SSL_TRANSPORT_STREAM,
+            MBEDTLS_SSL_PRESET_DEFAULT ) 
+       )
+    {
+        mbedtls_printf( " failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret );
+        return -1;
+    }
+
+    mbedtls_ssl_conf_rng( &(evt->conf), mbedtls_ctr_drbg_random, &(evt->ctr_drbg) );
+    mbedtls_ssl_conf_dbg( &(evt->conf), my_debug, stdout );
+
+    if( mbedtls_ssl_setup( &(evt->ssl),&(evt->conf) ) )
+    {
+        mbedtls_printf( " failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret );
+        return -1;
+    }
+
+    while( (ret = mbedtls_ssl_handshake( &(evt->ssl)) ))
+    {
+        
+        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+        {
+            char err[1024] = {0};
+            mbedtls_strerror(ret, err, sizeof(err));
+            mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
+        }
+    }
+    if ( ret == 0 && (evt->ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER) ) {
+            //call handshake cb
+            hshake_cb( evt, ret);
+    }
+    return ret;
 }
 
-void handshake_cb(evt_tls_t *evt, int status)
-{
-    printf("Evt: Handshake done\n");
 
-}
 
 int main()
 {
@@ -105,18 +152,6 @@ int main()
 
     mbedtls_printf( " ok\n" );
 
-    if( ( ret = mbedtls_ssl_config_defaults( &(evt.conf),
-                    MBEDTLS_SSL_IS_SERVER,
-                    MBEDTLS_SSL_TRANSPORT_STREAM,
-                    MBEDTLS_SSL_PRESET_DEFAULT ) ) != 0 )
-    {
-        mbedtls_printf( " failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret );
-        goto exit;
-    }
-
-    mbedtls_ssl_conf_rng( &(evt.conf), mbedtls_ctr_drbg_random, &(evt.ctr_drbg) );
-    mbedtls_ssl_conf_dbg( &(evt.conf), my_debug, stdout );
-
     mbedtls_ssl_conf_ca_chain( &(evt.conf), evt.srvcert.next, NULL );
     if( ( ret = mbedtls_ssl_conf_own_cert( &(evt.conf), &(evt.srvcert), &(evt.pkey) ) ) != 0 )
     {
@@ -124,15 +159,11 @@ int main()
         goto exit;
     }
 
-    if( ( ret = mbedtls_ssl_setup( &(evt.ssl), &(evt.conf) ) ) != 0 )
-    {
-        mbedtls_printf( " failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret );
-        goto exit;
-    }
-
+    
     mbedtls_net_free( &client_fd );
 
-    mbedtls_ssl_session_reset( &(evt.ssl) );
+    //Find out why it crashes
+    //mbedtls_ssl_session_reset( &(evt.ssl) );
 
     /*
      * 3. Wait until a client connects
@@ -154,25 +185,9 @@ int main()
     /*
      * 5. Handshake
      */
-    mbedtls_printf( "  . Performing the SSL/TLS handshake..." );
-    fflush( stdout );
+    evt_tls_connect(&evt, handshake_cb);
 
-    while( ( ret = mbedtls_ssl_handshake( &(evt.ssl) ) ) != 0 )
-    {
-        
-        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
-        {
-            char err[1024] = {0};
-            mbedtls_strerror(ret, err, sizeof(err));
-            mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
-            goto exit;
-        }
-    }
-    if ( ret == 0 && (evt.ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER) ) {
-            //call handshake cb
-            handshake_cb( &evt, ret);
-    }
-
+    
     mbedtls_printf( " ok\n" );
 
     /*
