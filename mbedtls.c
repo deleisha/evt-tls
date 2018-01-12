@@ -7,8 +7,20 @@
 #include "mbedtls/error.h"
 
 #include <string.h>
+#include <errno.h>
 
-typedef struct evt_tls_t
+//supported TLS operation
+enum tls_op_type {
+    EVT_TLS_OP_HANDSHAKE
+   ,EVT_TLS_OP_READ
+   ,EVT_TLS_OP_WRITE
+   ,EVT_TLS_OP_SHUTDOWN
+};
+typedef struct evt_tls_s evt_tls_t;
+typedef void (*evt_handshake_cb)(evt_tls_t *, int status);
+
+
+struct evt_tls_s
 {
     mbedtls_net_context server_fd;
     mbedtls_entropy_context entropy;
@@ -18,8 +30,41 @@ typedef struct evt_tls_t
 
     mbedtls_x509_crt srvcert;
     mbedtls_pk_context pkey;
-} evt_tls_t;
+    evt_handshake_cb hshake_cb;
+};
 
+
+
+static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
+{
+    int r = 0;
+    switch ( op ) {
+        case EVT_TLS_OP_HANDSHAKE: {
+            r = mbedtls_ssl_handshake(&(conn->ssl));
+            if (0 == r ) {
+                conn->hshake_cb(conn, r);
+            }
+            break;
+        }
+
+        case EVT_TLS_OP_READ: {
+        }
+
+        case EVT_TLS_OP_WRITE: {
+            break;
+        }
+
+        case EVT_TLS_OP_SHUTDOWN: {
+            break;
+        }
+
+        default:
+            break;
+    }
+    return r;
+
+        return r;
+}
 
 
 #define mbedtls_printf printf
@@ -36,7 +81,6 @@ void handshake_cb(evt_tls_t *evt, int status)
     printf("Evt: Handshake done\n");
 
 }
-
 
 void evt_tls_init(evt_tls_t *evt)
 {
@@ -59,11 +103,11 @@ void evt_tls_deinit(evt_tls_t *evt)
     mbedtls_x509_crt_free( &(evt->srvcert) );
     mbedtls_pk_free( &(evt->pkey) );
 }
-typedef void (evt_handshake_cb)(evt_tls_t *, int status);
 
 int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
 {
     int ret  = 0;
+    evt->hshake_cb = hshake_cb;
     if( mbedtls_ssl_config_defaults( &(evt->conf),
             MBEDTLS_SSL_IS_SERVER,
             MBEDTLS_SSL_TRANSPORT_STREAM,
@@ -74,7 +118,7 @@ int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
         return -1;
     }
 
-    mbedtls_ssl_conf_rng( &(evt->conf), mbedtls_ctr_drbg_random, &(evt->ctr_drbg) );
+    mbedtls_ssl_conf_rng(&(evt->conf),mbedtls_ctr_drbg_random,&(evt->ctr_drbg));
     mbedtls_ssl_conf_dbg( &(evt->conf), my_debug, stdout );
 
     if( mbedtls_ssl_setup( &(evt->ssl),&(evt->conf) ) )
@@ -83,20 +127,21 @@ int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
         return -1;
     }
 
-    while( (ret = mbedtls_ssl_handshake( &(evt->ssl)) ))
-    {
-        
-        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
-        {
-            char err[1024] = {0};
-            mbedtls_strerror(ret, err, sizeof(err));
-            mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
-        }
-    }
-    if ( ret == 0 && (evt->ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER) ) {
-            //call handshake cb
-            hshake_cb( evt, ret);
-    }
+//    while( (ret = mbedtls_ssl_handshake( &(evt->ssl)) ))
+//    {
+//        
+//        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+//        {
+//            char err[1024] = {0};
+//            mbedtls_strerror(ret, err, sizeof(err));
+//            mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
+//        }
+//    }
+//    if ( ret == 0 && (evt->ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER) ) {
+//            hshake_cb( evt, ret);
+//    }
+    evt__tls__op(evt,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+
     return ret;
 }
 
@@ -136,11 +181,24 @@ int main()
         goto exit;
     }
 
-    if( mbedtls_net_bind( &(evt.server_fd), NULL, "4433", MBEDTLS_NET_PROTO_TCP ))
+
+        if( mbedtls_net_bind( &(evt.server_fd), NULL, "4433", MBEDTLS_NET_PROTO_TCP ))
     {
         mbedtls_printf( " failed\n  ! mbedtls_net_bind returned %d\n\n", ret );
         goto exit;
     }
+
+    if( (ret = mbedtls_net_set_nonblock(&(evt.server_fd))) != 0)
+    {
+        int r = errno;
+        mbedtls_printf( " failed\n  ! mbedtls_net_set_nonblock returned %d\n\n", ret );
+        printf("%s\n", strerror(r));
+        goto exit;
+
+    }
+
+
+
 
     if( mbedtls_ctr_drbg_seed( &(evt.ctr_drbg), mbedtls_entropy_func, &(evt.entropy),
                 (const unsigned char *) pers,
@@ -150,7 +208,6 @@ int main()
         goto exit;
     }
 
-    mbedtls_printf( " ok\n" );
 
     mbedtls_ssl_conf_ca_chain( &(evt.conf), evt.srvcert.next, NULL );
     if( ( ret = mbedtls_ssl_conf_own_cert( &(evt.conf), &(evt.srvcert), &(evt.pkey) ) ) != 0 )
@@ -180,7 +237,6 @@ int main()
 
     mbedtls_ssl_set_bio( &(evt.ssl), &client_fd, mbedtls_net_send, mbedtls_net_recv, NULL );
 
-    mbedtls_printf( " ok\n" );
 
     /*
      * 5. Handshake
@@ -188,7 +244,6 @@ int main()
     evt_tls_connect(&evt, handshake_cb);
 
     
-    mbedtls_printf( " ok\n" );
 
     /*
      * 6. Read the HTTP Request
