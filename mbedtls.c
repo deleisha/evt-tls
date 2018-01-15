@@ -31,9 +31,33 @@ struct evt_tls_s
     mbedtls_x509_crt srvcert;
     mbedtls_pk_context pkey;
     evt_handshake_cb hshake_cb;
+    //for testing
+    unsigned char scratch[16*1024];
+    size_t data_len;
 };
 
 
+int my_send(void *ctx, const unsigned char *buf, size_t len)
+{
+    evt_tls_t *tls = (evt_tls_t*)ctx;
+    memcpy(tls->scratch, buf, len);
+    tls->data_len = 0;
+    return len;
+}
+
+int my_recv(void *ctx, unsigned char *buf, size_t len)
+{
+    evt_tls_t* tls = (evt_tls_t*)ctx;
+    memcpy( buf, tls->scratch, len);
+    tls->data_len = len;
+    return len;
+
+}
+
+void mimic_network(evt_tls_t *server, evt_tls_t *client)
+{
+
+}
 
 static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 {
@@ -91,6 +115,7 @@ void evt_tls_init(evt_tls_t *evt)
     mbedtls_ctr_drbg_init( &(evt->ctr_drbg) );
     mbedtls_x509_crt_init( &(evt->srvcert) );
     mbedtls_pk_init( &(evt->pkey) );
+    memset(evt->scratch, 10,10*1024*sizeof(unsigned char));
 }
 
 void evt_tls_deinit(evt_tls_t *evt)
@@ -104,7 +129,7 @@ void evt_tls_deinit(evt_tls_t *evt)
     mbedtls_pk_free( &(evt->pkey) );
 }
 
-int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
+int evt_tls_accept(evt_tls_t *evt, evt_handshake_cb hshake_cb)
 {
     int ret  = 0;
     evt->hshake_cb = hshake_cb;
@@ -145,103 +170,95 @@ int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
     return ret;
 }
 
+int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
+{
+    int ret  = 0;
+    evt->hshake_cb = hshake_cb;
+    if( mbedtls_ssl_config_defaults( &(evt->conf),
+            MBEDTLS_SSL_IS_CLIENT,
+            MBEDTLS_SSL_TRANSPORT_STREAM,
+            MBEDTLS_SSL_PRESET_DEFAULT ) 
+       )
+    {
+        mbedtls_printf( " failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret );
+        return -1;
+    }
 
+    mbedtls_ssl_conf_rng(&(evt->conf),mbedtls_ctr_drbg_random,&(evt->ctr_drbg));
+    mbedtls_ssl_conf_dbg( &(evt->conf), my_debug, stdout );
+
+    if( mbedtls_ssl_setup( &(evt->ssl), &(evt->conf) ) )
+    {
+        mbedtls_printf( " failed\n  ! mbedtls_ssl_setup returned %d\n\n", ret );
+        return -1;
+    }
+
+    evt__tls__op(evt,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+
+    return ret;
+}
+
+#define handle_error(r);   \
+    if((r) != 0) {        \
+        mbedtls_printf("failed\n ! mbedtls_x509_crt_parse returned %d\n\n",r); \
+        return 0;    \
+    }
 
 int main()
 {
     unsigned char buf[1024] = {0};
-    mbedtls_net_context client_fd;
-    int ret = 0;
+    int r = 0;
     int len = 0;
-    evt_tls_t evt;
-    evt_tls_init(&evt);
-    mbedtls_net_init( &client_fd );
+    evt_tls_t svc_hdl;
+    evt_tls_t client_hdl;
+    evt_tls_init(&svc_hdl);
+    evt_tls_init(&client_hdl);
 
-    ret = mbedtls_x509_crt_parse( &(evt.srvcert), (const unsigned char *) mbedtls_test_srv_crt,
+    r = mbedtls_x509_crt_parse( &(svc_hdl.srvcert), (const unsigned char *) mbedtls_test_srv_crt,
                           mbedtls_test_srv_crt_len);
-    if( ret != 0 )
-    {
-        mbedtls_printf( " failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret );
-        goto exit;
-    }
+    handle_error(r);
 
-    ret = mbedtls_x509_crt_parse( &evt.srvcert, (const unsigned char *) mbedtls_test_cas_pem,
+    r = mbedtls_x509_crt_parse( &svc_hdl.srvcert, (const unsigned char *) mbedtls_test_cas_pem,
                           mbedtls_test_cas_pem_len );
-    if( ret != 0 )
-    {
-        mbedtls_printf( " failed\n  !  mbedtls_x509_crt_parse returned %d\n\n", ret );
-        goto exit;
-    }
-
-    ret =  mbedtls_pk_parse_key( &(evt.pkey), (const unsigned char*) mbedtls_test_srv_key,
-                         mbedtls_test_srv_key_len, NULL, 0  );
-    if( ret != 0 )
-    {
-        mbedtls_printf( " failed\n  !  mbedtls_pk_parse_key returned %d\n\n", ret );
-        goto exit;
-    }
-
-
-        if( mbedtls_net_bind( &(evt.server_fd), NULL, "4433", MBEDTLS_NET_PROTO_TCP ))
-    {
-        mbedtls_printf( " failed\n  ! mbedtls_net_bind returned %d\n\n", ret );
-        goto exit;
-    }
-
-    if( (ret = mbedtls_net_set_nonblock(&(evt.server_fd))) != 0)
-    {
-        int r = errno;
-        mbedtls_printf( " failed\n  ! mbedtls_net_set_nonblock returned %d\n\n", ret );
-        printf("%s\n", strerror(r));
-        goto exit;
-
-    }
-
-
-
-
-    if( mbedtls_ctr_drbg_seed( &(evt.ctr_drbg), mbedtls_entropy_func, &(evt.entropy),
-                (const unsigned char *) pers,
-                strlen(pers) ) )
-    {
-        mbedtls_printf( " failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret );
-        goto exit;
-    }
-
-
-    mbedtls_ssl_conf_ca_chain( &(evt.conf), evt.srvcert.next, NULL );
-    if( ( ret = mbedtls_ssl_conf_own_cert( &(evt.conf), &(evt.srvcert), &(evt.pkey) ) ) != 0 )
-    {
-        mbedtls_printf( " failed\n  ! mbedtls_ssl_conf_own_cert returned %d\n\n", ret );
-        goto exit;
-    }
-
     
-    mbedtls_net_free( &client_fd );
-
-    //Find out why it crashes
-    //mbedtls_ssl_session_reset( &(evt.ssl) );
-
-    /*
-     * 3. Wait until a client connects
-     */
-    mbedtls_printf( "  . Waiting for a remote connection ..." );
-    fflush( stdout );
-
-    if( ( ret = mbedtls_net_accept( &(evt.server_fd), &client_fd,
-                                    NULL, 0, NULL ) ) != 0 )
-    {
-        mbedtls_printf( " failed\n  ! mbedtls_net_accept returned %d\n\n", ret );
-        goto exit;
-    }
-
-    mbedtls_ssl_set_bio( &(evt.ssl), &client_fd, mbedtls_net_send, mbedtls_net_recv, NULL );
+    handle_error(r);
 
 
-    /*
-     * 5. Handshake
-     */
-    evt_tls_connect(&evt, handshake_cb);
+    r =  mbedtls_pk_parse_key( &(svc_hdl.pkey), (const unsigned char*) mbedtls_test_srv_key,
+                         mbedtls_test_srv_key_len, NULL, 0  );
+    
+    handle_error(r);
+
+    r = mbedtls_ctr_drbg_seed( &(svc_hdl.ctr_drbg), mbedtls_entropy_func, &(svc_hdl.entropy),
+                (const unsigned char *) pers,
+                strlen(pers) );
+    handle_error(r);
+
+
+    mbedtls_ssl_conf_ca_chain( &(svc_hdl.conf), svc_hdl.srvcert.next, NULL );
+    r = mbedtls_ssl_conf_own_cert( &(svc_hdl.conf), &(svc_hdl.srvcert), &(svc_hdl.pkey) )
+    handle_error(r);
+
+    mbedtls_ssl_set_bio( &(svc_hdl.ssl), &client_hdl, my_send, my_recv, NULL);
+
+    //
+    //
+    //Setup client part
+    r = mbedtls_x509_crt_parse( &(client_hdl.srvcert), (const unsigned char *) mbedtls_test_cas_pem,
+                          mbedtls_test_cas_pem_len );
+    handle_error(r);
+    /* OPTIONAL is not optimal for security,
+     * but makes interop easier in this simplified example */
+    mbedtls_ssl_conf_authmode( &(client_hdl.conf), MBEDTLS_SSL_VERIFY_OPTIONAL );
+    mbedtls_ssl_conf_ca_chain( &(client_hdl.conf), &(client_hdl.srvcert), NULL );
+
+    mbedtls_ssl_set_bio( &(client_hdl.ssl), &svc_hdl, my_send, my_recv, NULL);
+
+    evt_tls_connect(&client_hdl, handshake_cb);
+
+
+    //Start the handshake now
+    evt_tls_accept(&svc_hdl, handshake_cb);
 
     
 
@@ -255,14 +272,14 @@ int main()
     {
         len = sizeof( buf ) - 1;
         memset( buf, 0, sizeof( buf ) );
-        ret = mbedtls_ssl_read( &(evt.ssl), buf, len );
+        r = mbedtls_ssl_read( &(svc_hdl.ssl), buf, len );
 
-        if( ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE )
+        if( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE )
             continue;
 
-        if( ret <= 0 )
+        if( r <= 0 )
         {
-            switch( ret )
+            switch( r )
             {
                 case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
                     mbedtls_printf( " connection was closed gracefully\n" );
@@ -273,21 +290,18 @@ int main()
                     break;
 
                 default:
-                    mbedtls_printf( " mbedtls_ssl_read returned -0x%x\n", -ret );
+                    mbedtls_printf( " mbedtls_ssl_read returned -0x%x\n", -r );
                     break;
             }
 
             break;
         }
 
-        len = ret;
+        len = r;
         mbedtls_printf( " %d bytes read\n\n%s", len, (char *) buf );
 
-        if( ret > 0 )
+        if( r > 0 )
             break;
     }
     while( 1 );
-
-exit:
-return 0;
 }
