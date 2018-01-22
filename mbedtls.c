@@ -51,12 +51,14 @@ int my_recv(void *ctx, unsigned char *buf, size_t len)
     memcpy( buf, tls->scratch, len);
     tls->data_len = len;
     return len;
-
 }
 
-void mimic_network(evt_tls_t *server, evt_tls_t *client)
+static void mimic_asyncio(evt_tls_t *server, evt_tls_t *client)
 {
-
+//    if (server->state != MBEDTLS_SSL_HANDSHAKE_OVER )
+    {
+//        evt__tls__op(server,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+    }
 }
 
 static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
@@ -98,8 +100,6 @@ void my_debug()
 {
 }
 
-
-
 void handshake_cb(evt_tls_t *evt, int status)
 {
     printf("Evt: Handshake done\n");
@@ -115,7 +115,7 @@ void evt_tls_init(evt_tls_t *evt)
     mbedtls_ctr_drbg_init( &(evt->ctr_drbg) );
     mbedtls_x509_crt_init( &(evt->srvcert) );
     mbedtls_pk_init( &(evt->pkey) );
-    memset(evt->scratch, 10,10*1024*sizeof(unsigned char));
+    memset(evt->scratch, 10,16*1024*sizeof(unsigned char));
 }
 
 void evt_tls_deinit(evt_tls_t *evt)
@@ -200,7 +200,7 @@ int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
 
 #define handle_error(r);   \
     if((r) != 0) {        \
-        mbedtls_printf("failed\n ! mbedtls_x509_crt_parse returned %d\n\n",r); \
+        mbedtls_printf("failed\n ! mbedtls returned %d\n\n",r); \
         return 0;    \
     }
 
@@ -247,6 +247,13 @@ int main()
     r = mbedtls_x509_crt_parse( &(client_hdl.srvcert), (const unsigned char *) mbedtls_test_cas_pem,
                           mbedtls_test_cas_pem_len );
     handle_error(r);
+
+    r = mbedtls_ctr_drbg_seed( &(client_hdl.ctr_drbg), mbedtls_entropy_func, &(svc_hdl.entropy),
+                (const unsigned char *) "Test client",
+                sizeof("Test client") );
+    handle_error(r);
+
+
     /* OPTIONAL is not optimal for security,
      * but makes interop easier in this simplified example */
     mbedtls_ssl_conf_authmode( &(client_hdl.conf), MBEDTLS_SSL_VERIFY_OPTIONAL );
@@ -260,7 +267,38 @@ int main()
     //Start the handshake now
     evt_tls_accept(&svc_hdl, handshake_cb);
 
-    
+    r = mbedtls_ssl_handshake(&(svc_hdl.ssl));
+    if (0 == r ) {
+        svc_hdl.hshake_cb(&svc_hdl, r);
+    }
+
+
+    r = mbedtls_ssl_handshake(&(client_hdl.ssl));
+    if (0 == r ) {
+        client_hdl.hshake_cb(&client_hdl, r);
+    }
+
+    r = mbedtls_ssl_handshake(&(svc_hdl.ssl));
+    if (0 == r ) {
+        svc_hdl.hshake_cb(&svc_hdl, r);
+    }
+
+    r = mbedtls_ssl_handshake(&(client_hdl.ssl));
+    if (0 == r ) {
+        client_hdl.hshake_cb(&client_hdl, r);
+    }
+    r = mbedtls_ssl_handshake(&(svc_hdl.ssl));
+    if (0 == r ) {
+        svc_hdl.hshake_cb(&svc_hdl, r);
+    }
+
+
+    r = mbedtls_ssl_handshake(&(client_hdl.ssl));
+    if (0 == r ) {
+        client_hdl.hshake_cb(&client_hdl, r);
+    }
+
+
 
     /*
      * 6. Read the HTTP Request
@@ -302,6 +340,5 @@ int main()
 
         if( r > 0 )
             break;
-    }
-    while( 1 );
+    } while( 1 );
 }
