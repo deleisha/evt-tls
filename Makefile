@@ -11,8 +11,8 @@ gen_cert:
 
 test_evt:
 	$(CC) -g -Wall -o $@ -Iapi -I./ evt_test.c src/evt_tls.c -lssl -lcrypto -lrt
-mbedtls:
-	$(CC) -g -Wall -o $@ -Iapi -I./ mbedtls.c -lmbedtls -lmbedx509 -lmbedcrypto \
+test_mevt:
+	$(CC) -g -Wall -o $@ -Iapi -I./atls/include  -L./atls/library mbedtls.c -lmbedtls -lmbedx509 -lmbedcrypto \
 	-L/usr/lib/x86_64-linux-gnu
 
 test:
@@ -21,4 +21,3 @@ test:
 clean:
 	make -C sample/libuv-tls clean
 	-rm test_evt
-	-rm mbedtls

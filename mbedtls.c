@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 
 //supported TLS operation
 enum tls_op_type {
@@ -22,7 +23,7 @@ typedef void (*evt_handshake_cb)(evt_tls_t *, int status);
 
 struct evt_tls_s
 {
-    mbedtls_net_context server_fd;
+    void *data;
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
     mbedtls_ssl_context ssl;
@@ -31,25 +32,34 @@ struct evt_tls_s
     mbedtls_x509_crt srvcert;
     mbedtls_pk_context pkey;
     evt_handshake_cb hshake_cb;
-    //for testing
-    unsigned char scratch[16*1024];
-    size_t data_len;
 };
+
+typedef struct nio_data
+{
+    unsigned char scratch[16*1024];
+    int scratch_len;
+    int is_stalled;
+}nio_data;
+
+nio_data ndata;
 
 
 int my_send(void *ctx, const unsigned char *buf, size_t len)
 {
     evt_tls_t *tls = (evt_tls_t*)ctx;
-    memcpy(tls->scratch, buf, len);
-    tls->data_len = 0;
+    memset(ndata.scratch, 0, 16*1024*sizeof(unsigned char));
+    memcpy(ndata.scratch, buf, len);
+    ndata.scratch_len = len;
     return len;
 }
 
 int my_recv(void *ctx, unsigned char *buf, size_t len)
 {
     evt_tls_t* tls = (evt_tls_t*)ctx;
-    memcpy( buf, tls->scratch, len);
-    tls->data_len = len;
+    memset(ndata.scratch, 0, 16*1024*sizeof(unsigned char));
+    assert(len <= ndata.scratch_len);
+    memcpy( buf, ndata.scratch , len);
+    ndata.scratch_len = len;
     return len;
 }
 
@@ -108,19 +118,16 @@ void handshake_cb(evt_tls_t *evt, int status)
 
 void evt_tls_init(evt_tls_t *evt)
 {
-    mbedtls_net_init( &(evt->server_fd) );
     mbedtls_entropy_init( &(evt->entropy) );
     mbedtls_ssl_init( &(evt->ssl) );
     mbedtls_ssl_config_init( &(evt->conf) );
     mbedtls_ctr_drbg_init( &(evt->ctr_drbg) );
     mbedtls_x509_crt_init( &(evt->srvcert) );
     mbedtls_pk_init( &(evt->pkey) );
-    memset(evt->scratch, 10,16*1024*sizeof(unsigned char));
 }
 
 void evt_tls_deinit(evt_tls_t *evt)
 {
-    mbedtls_net_free( &(evt->server_fd) );
     mbedtls_ssl_free( &(evt->ssl) );
     mbedtls_ssl_config_free( &(evt->conf) );
     mbedtls_ctr_drbg_free( &(evt->ctr_drbg) );
