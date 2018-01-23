@@ -47,19 +47,26 @@ nio_data ndata;
 int my_send(void *ctx, const unsigned char *buf, size_t len)
 {
     evt_tls_t *tls = (evt_tls_t*)ctx;
+    if (ndata.is_stalled ) {
+        return MBEDTLS_ERR_SSL_WANT_WRITE;
+
+    }
     memset(ndata.scratch, 0, 16*1024*sizeof(unsigned char));
     memcpy(ndata.scratch, buf, len);
     ndata.scratch_len = len;
+    ndata.is_stalled = 0;
     return len;
 }
 
 int my_recv(void *ctx, unsigned char *buf, size_t len)
 {
     evt_tls_t* tls = (evt_tls_t*)ctx;
-    memset(ndata.scratch, 0, 16*1024*sizeof(unsigned char));
-    assert(len <= ndata.scratch_len);
+    if (ndata.is_stalled ) {
+        return MBEDTLS_ERR_SSL_WANT_READ;
+    }
     memcpy( buf, ndata.scratch , len);
     ndata.scratch_len = len;
+    ndata.is_stalled = 1;
     return len;
 }
 
@@ -76,11 +83,20 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
     int r = 0;
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
-            r = mbedtls_ssl_handshake(&(conn->ssl));
-            if (0 == r ) {
-                conn->hshake_cb(conn, r);
+            if ( conn->ssl.state != MBEDTLS_SSL_HANDSHAKE_OVER)
+            {
+                r = mbedtls_ssl_handshake_step(&(conn->ssl));
+                if((r== MBEDTLS_ERR_SSL_WANT_WRITE) || (r==MBEDTLS_ERR_SSL_WANT_WRITE))
+                {
+                    break;
+                }
+
+                if ( conn->ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER)
+                {
+                    conn->hshake_cb(conn, r);
+                }
+                break;
             }
-            break;
         }
 
         case EVT_TLS_OP_READ: {
@@ -98,8 +114,6 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
             break;
     }
     return r;
-
-        return r;
 }
 
 
@@ -200,7 +214,7 @@ int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
         return -1;
     }
 
-    evt__tls__op(evt,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+    ret = evt__tls__op(evt,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
 
     return ret;
 }
@@ -274,38 +288,42 @@ int main()
     //Start the handshake now
     evt_tls_accept(&svc_hdl, handshake_cb);
 
-    r = mbedtls_ssl_handshake(&(svc_hdl.ssl));
+
+    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
+    if (0 == r ) {
+        client_hdl.hshake_cb(&client_hdl, r);
+    }
+
+    r = mbedtls_ssl_handshake_step( &(svc_hdl.ssl));
     if (0 == r ) {
         svc_hdl.hshake_cb(&svc_hdl, r);
     }
 
 
-    r = mbedtls_ssl_handshake(&(client_hdl.ssl));
+    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
     if (0 == r ) {
         client_hdl.hshake_cb(&client_hdl, r);
     }
 
-    r = mbedtls_ssl_handshake(&(svc_hdl.ssl));
+    r = mbedtls_ssl_handshake_step(&(svc_hdl.ssl));
     if (0 == r ) {
         svc_hdl.hshake_cb(&svc_hdl, r);
     }
 
-    r = mbedtls_ssl_handshake(&(client_hdl.ssl));
+    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
     if (0 == r ) {
         client_hdl.hshake_cb(&client_hdl, r);
     }
-    r = mbedtls_ssl_handshake(&(svc_hdl.ssl));
+    r = mbedtls_ssl_handshake_step(&(svc_hdl.ssl));
     if (0 == r ) {
         svc_hdl.hshake_cb(&svc_hdl, r);
     }
 
 
-    r = mbedtls_ssl_handshake(&(client_hdl.ssl));
+    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
     if (0 == r ) {
         client_hdl.hshake_cb(&client_hdl, r);
     }
-
-
 
     /*
      * 6. Read the HTTP Request
