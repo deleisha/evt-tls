@@ -7,8 +7,12 @@
 #include "mbedtls/error.h"
 
 #include <string.h>
+#include <stdio.h>
 #include <errno.h>
 #include <assert.h>
+
+#define mbedtls_printf printf
+
 
 //supported TLS operation
 enum tls_op_type {
@@ -19,6 +23,12 @@ enum tls_op_type {
 };
 typedef struct evt_tls_s evt_tls_t;
 typedef void (*evt_handshake_cb)(evt_tls_t *, int status);
+
+enum evt_endpt_t {
+    ENDPT_IS_CLIENT
+   ,ENDPT_IS_SERVER
+};
+typedef enum evt_endpt_t evt_endpt_t;
 
 
 struct evt_tls_s
@@ -32,7 +42,22 @@ struct evt_tls_s
     mbedtls_x509_crt srvcert;
     mbedtls_pk_context pkey;
     evt_handshake_cb hshake_cb;
+    unsigned char nio_data[16*1024];
+    int nio_data_len;
+    int offset;
 };
+
+char *role[] = {
+    "Client",
+    "Server"
+};
+
+
+evt_endpt_t evt_tls_get_role(const evt_tls_t *t)
+{
+    return (evt_endpt_t)t->ssl.conf->endpoint;
+}
+
 
 typedef struct nio_data
 {
@@ -47,26 +72,29 @@ nio_data ndata;
 int my_send(void *ctx, const unsigned char *buf, size_t len)
 {
     evt_tls_t *tls = (evt_tls_t*)ctx;
-    if (ndata.is_stalled ) {
-        return MBEDTLS_ERR_SSL_WANT_WRITE;
-
-    }
-    memset(ndata.scratch, 0, 16*1024*sizeof(unsigned char));
-    memcpy(ndata.scratch, buf, len);
-    ndata.scratch_len = len;
-    ndata.is_stalled = 0;
+    evt_tls_t* self = (evt_tls_t*)tls->data;
+    mbedtls_printf("%s: Sending %u bytes\n",role[evt_tls_get_role(self)], len);
+//    if (ndata.is_stalled ) {
+ //       return MBEDTLS_ERR_SSL_WANT_WRITE;
+//
+ //   }
+    memcpy(tls->nio_data, buf, len);
+    tls->nio_data_len = len;
+    tls->offset = 0;
     return len;
 }
 
 int my_recv(void *ctx, unsigned char *buf, size_t len)
 {
     evt_tls_t* tls = (evt_tls_t*)ctx;
-    if (ndata.is_stalled ) {
+    evt_tls_t* self = (evt_tls_t*)tls->data;
+    mbedtls_printf("%s : reading %u bytes\n",role[evt_tls_get_role(self)],len );
+    if (self->nio_data_len < len ) {
         return MBEDTLS_ERR_SSL_WANT_READ;
     }
-    memcpy( buf, ndata.scratch , len);
-    ndata.scratch_len = len;
-    ndata.is_stalled = 1;
+    memcpy( buf, self->nio_data + self->offset, len);
+    self->nio_data_len -= len;
+    self->offset +=len;
     return len;
 }
 
@@ -86,9 +114,11 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
             if ( conn->ssl.state != MBEDTLS_SSL_HANDSHAKE_OVER)
             {
                 r = mbedtls_ssl_handshake_step(&(conn->ssl));
-                if((r== MBEDTLS_ERR_SSL_WANT_WRITE) || (r==MBEDTLS_ERR_SSL_WANT_WRITE))
+                if( (r < 0 ))
                 {
-                    break;
+                    char err[1024] = {0};
+                    mbedtls_strerror(r, err, sizeof(err));
+                    mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
                 }
 
                 if ( conn->ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER)
@@ -117,12 +147,21 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 }
 
 
-#define mbedtls_printf printf
 #define MBEDTLS_DEBUG_LEVEL 4
 const char * pers = "test mbedtls server";
-void my_debug()
+#define mbedtls_fprintf fprintf
+
+static void my_debug( void *ctx, int level,
+                      const char *file, int line,
+                      const char *str )
 {
+    ((void) level);
+    mbedtls_fprintf( (FILE *) ctx, "%s:%04d: %s", file, line, str );
+    fflush(  (FILE *) ctx  );
 }
+
+
+
 
 void handshake_cb(evt_tls_t *evt, int status)
 {
@@ -138,6 +177,9 @@ void evt_tls_init(evt_tls_t *evt)
     mbedtls_ctr_drbg_init( &(evt->ctr_drbg) );
     mbedtls_x509_crt_init( &(evt->srvcert) );
     mbedtls_pk_init( &(evt->pkey) );
+    memset(evt->nio_data, 0, 16*1024);
+    evt->nio_data_len = 0;
+    evt->offset = 0;
 }
 
 void evt_tls_deinit(evt_tls_t *evt)
@@ -234,6 +276,9 @@ int main()
     evt_tls_t client_hdl;
     evt_tls_init(&svc_hdl);
     evt_tls_init(&client_hdl);
+    svc_hdl.data = &client_hdl;
+    client_hdl.data = &svc_hdl;
+    mbedtls_debug_set_threshold(5);
 
     r = mbedtls_x509_crt_parse( &(svc_hdl.srvcert), (const unsigned char *) mbedtls_test_srv_crt,
                           mbedtls_test_srv_crt_len);
@@ -277,7 +322,7 @@ int main()
 
     /* OPTIONAL is not optimal for security,
      * but makes interop easier in this simplified example */
-    mbedtls_ssl_conf_authmode( &(client_hdl.conf), MBEDTLS_SSL_VERIFY_OPTIONAL );
+    mbedtls_ssl_conf_authmode( &(client_hdl.conf), MBEDTLS_SSL_VERIFY_NONE );
     mbedtls_ssl_conf_ca_chain( &(client_hdl.conf), &(client_hdl.srvcert), NULL );
 
     mbedtls_ssl_set_bio( &(client_hdl.ssl), &svc_hdl, my_send, my_recv, NULL);
@@ -288,82 +333,61 @@ int main()
     //Start the handshake now
     evt_tls_accept(&svc_hdl, handshake_cb);
 
+    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
+    assert(r == 0);
 
-    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
-    if (0 == r ) {
-        client_hdl.hshake_cb(&client_hdl, r);
-    }
+    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
+    assert(r == 0);
+    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
+    assert(r == 0);
+    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
+    assert(r == 0);
 
-    r = mbedtls_ssl_handshake_step( &(svc_hdl.ssl));
-    if (0 == r ) {
-        svc_hdl.hshake_cb(&svc_hdl, r);
-    }
+    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
+    assert(r == 0);
 
+    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
+    assert(r == 0);
 
-    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
-    if (0 == r ) {
-        client_hdl.hshake_cb(&client_hdl, r);
-    }
-
-    r = mbedtls_ssl_handshake_step(&(svc_hdl.ssl));
-    if (0 == r ) {
-        svc_hdl.hshake_cb(&svc_hdl, r);
-    }
-
-    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
-    if (0 == r ) {
-        client_hdl.hshake_cb(&client_hdl, r);
-    }
-    r = mbedtls_ssl_handshake_step(&(svc_hdl.ssl));
-    if (0 == r ) {
-        svc_hdl.hshake_cb(&svc_hdl, r);
-    }
-
-
-    r = mbedtls_ssl_handshake_step(&(client_hdl.ssl));
-    if (0 == r ) {
-        client_hdl.hshake_cb(&client_hdl, r);
-    }
-
-    /*
-     * 6. Read the HTTP Request
-     */
-    mbedtls_printf( "  < Read from client:" );
-    fflush( stdout );
-
-    do
-    {
-        len = sizeof( buf ) - 1;
-        memset( buf, 0, sizeof( buf ) );
-        r = mbedtls_ssl_read( &(svc_hdl.ssl), buf, len );
-
-        if( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE )
-            continue;
-
-        if( r <= 0 )
-        {
-            switch( r )
-            {
-                case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-                    mbedtls_printf( " connection was closed gracefully\n" );
-                    break;
-
-                case MBEDTLS_ERR_NET_CONN_RESET:
-                    mbedtls_printf( " connection was reset by peer\n" );
-                    break;
-
-                default:
-                    mbedtls_printf( " mbedtls_ssl_read returned -0x%x\n", -r );
-                    break;
-            }
-
-            break;
-        }
-
-        len = r;
-        mbedtls_printf( " %d bytes read\n\n%s", len, (char *) buf );
-
-        if( r > 0 )
-            break;
-    } while( 1 );
+//    /*
+//     * 6. Read the HTTP Request
+//     */
+//    mbedtls_printf( "  < Read from client:" );
+//    fflush( stdout );
+//
+//    do
+//    {
+//        len = sizeof( buf ) - 1;
+//        memset( buf, 0, sizeof( buf ) );
+//        r = mbedtls_ssl_read( &(svc_hdl.ssl), buf, len );
+//
+//        if( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE )
+//            continue;
+//
+//        if( r <= 0 )
+//        {
+//            switch( r )
+//            {
+//                case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+//                    mbedtls_printf( " connection was closed gracefully\n" );
+//                    break;
+//
+//                case MBEDTLS_ERR_NET_CONN_RESET:
+//                    mbedtls_printf( " connection was reset by peer\n" );
+//                    break;
+//
+//                default:
+//                    mbedtls_printf( " mbedtls_ssl_read returned -0x%x\n", -r );
+//                    break;
+//            }
+//
+//            break;
+//        }
+//
+//        len = r;
+//        mbedtls_printf( " %d bytes read\n\n%s", len, (char *) buf );
+//
+//        if( r > 0 )
+//            break;
+//    } while( 1 );
 }
