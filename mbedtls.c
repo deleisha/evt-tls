@@ -52,32 +52,73 @@ char *role[] = {
     "Server"
 };
 
+int evt_tls_is_handshake_done(const mbedtls_ssl_context *ssl)
+{
+    return (ssl->state == MBEDTLS_SSL_HANDSHAKE_OVER);
+}
+
 
 evt_endpt_t evt_tls_get_role(const evt_tls_t *t)
 {
     return (evt_endpt_t)t->ssl.conf->endpoint;
 }
 
-
-typedef struct nio_data
+static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 {
-    unsigned char scratch[16*1024];
-    int scratch_len;
-    int is_stalled;
-}nio_data;
+    int r = 0;
+    unsigned char bufr[1024];
+    switch ( op ) {
+        case EVT_TLS_OP_HANDSHAKE: {
+            if ( !evt_tls_is_handshake_done(&(conn->ssl)))
+            {
+                r = mbedtls_ssl_handshake_step(&(conn->ssl));
+                if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                    break;
+                }
+                if( (r < 0 ))
+                {
+                    char err[1024] = {0};
+                    mbedtls_strerror(r, err, sizeof(err));
+                    mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
+                }
 
-nio_data ndata;
+                if ( (r == 0) && (evt_tls_is_handshake_done(&(conn->ssl))))
+                {
+                    conn->hshake_cb(conn, r);
+                }
+            }
+            break;
+        }
 
+        case EVT_TLS_OP_READ: {
+          memset( bufr, 0, sizeof( bufr ) );
+          r = mbedtls_ssl_read( &(conn->ssl), bufr, sizeof(bufr) - 1);
+        }
+
+        case EVT_TLS_OP_WRITE: {
+           mbedtls_ssl_write(&conn->ssl, (const unsigned char*)buf, sz);
+            break;
+        }
+
+        case EVT_TLS_OP_SHUTDOWN: {
+            break;
+        }
+
+        default:
+            break;
+    }
+    return r;
+}
 
 int my_send(void *ctx, const unsigned char *buf, size_t len)
 {
+    int ret = 0;
     evt_tls_t *tls = (evt_tls_t*)ctx;
     evt_tls_t* self = (evt_tls_t*)tls->data;
     mbedtls_printf("%s: Sending %u bytes\n",role[evt_tls_get_role(self)], len);
-//    if (ndata.is_stalled ) {
- //       return MBEDTLS_ERR_SSL_WANT_WRITE;
-//
- //   }
+    if (tls->nio_data_len) {
+        return MBEDTLS_ERR_SSL_WANT_WRITE;
+    }
     memcpy(tls->nio_data, buf, len);
     tls->nio_data_len = len;
     tls->offset = 0;
@@ -98,52 +139,19 @@ int my_recv(void *ctx, unsigned char *buf, size_t len)
     return len;
 }
 
-static void mimic_asyncio(evt_tls_t *self, evt_tls_t *peer)
+static void handshake_loop(evt_tls_t *src, evt_tls_t *dest)
 {
-//    if (self->state != MBEDTLS_SSL_HANDSHAKE_OVER )
-    {
-//        evt__tls__op(self,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+    evt_tls_t *t = NULL;
+    int ret = 0;
+    for(;;) {
+        if ( !evt_tls_is_handshake_done(&src->ssl)) {
+            ret = evt__tls__op(src,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+        }
+        else break;
+        t = dest;
+        dest= src;
+        src = t;
     }
-}
-
-static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
-{
-    int r = 0;
-    switch ( op ) {
-        case EVT_TLS_OP_HANDSHAKE: {
-            if ( conn->ssl.state != MBEDTLS_SSL_HANDSHAKE_OVER)
-            {
-                r = mbedtls_ssl_handshake_step(&(conn->ssl));
-                if( (r < 0 ))
-                {
-                    char err[1024] = {0};
-                    mbedtls_strerror(r, err, sizeof(err));
-                    mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
-                }
-
-                if ( conn->ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER)
-                {
-                    conn->hshake_cb(conn, r);
-                }
-                break;
-            }
-        }
-
-        case EVT_TLS_OP_READ: {
-        }
-
-        case EVT_TLS_OP_WRITE: {
-            break;
-        }
-
-        case EVT_TLS_OP_SHUTDOWN: {
-            break;
-        }
-
-        default:
-            break;
-    }
-    return r;
 }
 
 
@@ -160,12 +168,17 @@ static void my_debug( void *ctx, int level,
     fflush(  (FILE *) ctx  );
 }
 
-
-
-
 void handshake_cb(evt_tls_t *evt, int status)
 {
     mbedtls_printf("%s: Handshake done\n",role[evt_tls_get_role(evt)]);
+    char *str = "Hello ARM mbedtls";
+    if ( 0 == status) {
+        if (evt_tls_get_role(evt) == 0 )
+            evt__tls__op(evt, EVT_TLS_OP_READ, 0, 0);
+        else 
+        evt__tls__op(evt, EVT_TLS_OP_WRITE, str, strlen(str));
+
+    }
 
 }
 
@@ -216,19 +229,6 @@ int evt_tls_accept(evt_tls_t *evt, evt_handshake_cb hshake_cb)
         return -1;
     }
 
-//    while( (ret = mbedtls_ssl_handshake( &(evt->ssl)) ))
-//    {
-//        
-//        if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
-//        {
-//            char err[1024] = {0};
-//            mbedtls_strerror(ret, err, sizeof(err));
-//            mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
-//        }
-//    }
-//    if ( ret == 0 && (evt->ssl.state == MBEDTLS_SSL_HANDSHAKE_OVER) ) {
-//            hshake_cb( evt, ret);
-//    }
     evt__tls__op(evt,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
 
     return ret;
@@ -271,7 +271,6 @@ int evt_tls_connect(evt_tls_t *evt, evt_handshake_cb hshake_cb)
 
 int main()
 {
-    unsigned char buf[1024] = {0};
     int r = 0;
     int len = 0;
     evt_tls_t svc_hdl;
@@ -335,128 +334,10 @@ int main()
     //Start the handshake now
     evt_tls_accept(&svc_hdl, handshake_cb);
 
-    //client send ClientHello
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //Server recieves hello messsage
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-    //Server respond with ServerHello
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-    //cleint parses ServerHello
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //Write ServerCert
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //client parses server certs
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //Server wrote ServerKeyExchnge
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //client parses server key
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //server sends certRequest, nothing if verification mode is off
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //Sends serverHelloDone
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses cert request
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses server Hello done
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //send client cert 
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-
-    //send client key
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses client cert
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses client key
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //handles certificate verify
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses certificate verify
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //send cipher change spec
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses cipher change spec
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //write client finishes
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses client finishes
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //send change server cipher spec
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses server change cipher spec
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-
-    //send server finishes
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses server finishes
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-
-    //wrapup - flush buffer
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-
-    //parses server finishes
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
+    handshake_loop(&client_hdl, &svc_hdl);
 
 
 
-    r = evt__tls__op(&svc_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
-
-    //parses server finishes
-    r = evt__tls__op(&client_hdl, EVT_TLS_OP_HANDSHAKE, 0, 0);
-    assert(r == 0);
 
 //    /*
 //     * 6. Read the HTTP Request
