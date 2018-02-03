@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #define mbedtls_printf printf
 
@@ -66,7 +67,8 @@ evt_endpt_t evt_tls_get_role(const evt_tls_t *t)
 static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 {
     int r = 0;
-    unsigned char bufr[1024];
+    unsigned char *bufr = NULL;
+    char err[128] = {0};
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
             if ( !evt_tls_is_handshake_done(&(conn->ssl)))
@@ -75,11 +77,11 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                 if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
                     break;
                 }
+                //TODO: replace by proper error handling
+                //including reseting context or freeing it
                 if( (r < 0 ))
                 {
-                    char err[1024] = {0};
-                    mbedtls_strerror(r, err, sizeof(err));
-                    mbedtls_printf( " failed\n  ! mbedtls_ssl_handshake returned: %s\n\n", err );
+                    goto err;
                 }
 
                 if ( (r == 0) && (evt_tls_is_handshake_done(&(conn->ssl))))
@@ -91,12 +93,47 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         }
 
         case EVT_TLS_OP_READ: {
-          memset( bufr, 0, sizeof( bufr ) );
-          r = mbedtls_ssl_read( &(conn->ssl), bufr, sizeof(bufr) - 1);
+          //get num bytes, allocates buffer and read into it
+          //trick to get number of available byte,
+          mbedtls_ssl_read(&conn->ssl, NULL, 0);
+          size_t sz = mbedtls_ssl_get_bytes_avail(&conn->ssl) + 1;
+          bufr = malloc(sz);
+          assert( bufr != NULL && "Memory alloc failed");
+          memset( bufr, 0, sz);
+          do {
+              r = mbedtls_ssl_read( &(conn->ssl), bufr, sz - 1);
+              if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                  break;
+              }
+              //TODO: replace by proper error handling
+              //including reseting context or freeing it
+              if ( r < 0 ) {
+                  goto err;
+              }
+          } while( r != 0);
+          //TODO: callback to be invoked
+
+          printf("Received msg : %s\n", bufr);
+          free(bufr);
+          bufr = NULL;
+          break;
         }
 
         case EVT_TLS_OP_WRITE: {
-           mbedtls_ssl_write(&conn->ssl, (const unsigned char*)buf, sz);
+           while( sz > 0) {
+               r = mbedtls_ssl_write(&conn->ssl, (const unsigned char*)buf + r, sz);
+               assert( r > 0 && "ssl write failed");
+               if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                    break;
+               }
+               if ( r < 0 ) {
+                   goto err;
+               }
+               sz -= r;
+           }
+           if ( sz == 0) {
+                   //call the write callback
+           }
             break;
         }
 
@@ -107,6 +144,11 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         default:
             break;
     }
+    return r;
+
+err:
+    mbedtls_strerror(r, err, sizeof(err));
+    mbedtls_printf( " Failed ! : %s\n\n", err );
     return r;
 }
 
@@ -173,13 +215,14 @@ void handshake_cb(evt_tls_t *evt, int status)
     mbedtls_printf("%s: Handshake done\n",role[evt_tls_get_role(evt)]);
     char *str = "Hello ARM mbedtls";
     if ( 0 == status) {
-        if (evt_tls_get_role(evt) == 0 )
+        if (evt_tls_get_role(evt) == ENDPT_IS_CLIENT) {
             evt__tls__op(evt, EVT_TLS_OP_READ, 0, 0);
+        }
         else 
-        evt__tls__op(evt, EVT_TLS_OP_WRITE, str, strlen(str));
-
+        {
+            evt__tls__op(evt, EVT_TLS_OP_WRITE, str, strlen(str));
+        }
     }
-
 }
 
 void evt_tls_init(evt_tls_t *evt)
@@ -324,7 +367,7 @@ int main()
     /* OPTIONAL is not optimal for security,
      * but makes interop easier in this simplified example */
     mbedtls_ssl_conf_authmode( &(client_hdl.conf), MBEDTLS_SSL_VERIFY_NONE );
-    mbedtls_ssl_conf_ca_chain( &(client_hdl.conf), &(client_hdl.srvcert), NULL );
+    mbedtls_ssl_conf_ca_chain( &(client_hdl.conf), &(client_hdl.srvcert), NULL);
 
     mbedtls_ssl_set_bio( &(client_hdl.ssl), &svc_hdl, my_send, my_recv, NULL);
 
@@ -335,49 +378,4 @@ int main()
     evt_tls_accept(&svc_hdl, handshake_cb);
 
     handshake_loop(&client_hdl, &svc_hdl);
-
-
-
-
-//    /*
-//     * 6. Read the HTTP Request
-//     */
-//    mbedtls_printf( "  < Read from client:" );
-//    fflush( stdout );
-//
-//    do
-//    {
-//        len = sizeof( buf ) - 1;
-//        memset( buf, 0, sizeof( buf ) );
-//        r = mbedtls_ssl_read( &(svc_hdl.ssl), buf, len );
-//
-//        if( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE )
-//            continue;
-//
-//        if( r <= 0 )
-//        {
-//            switch( r )
-//            {
-//                case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-//                    mbedtls_printf( " connection was closed gracefully\n" );
-//                    break;
-//
-//                case MBEDTLS_ERR_NET_CONN_RESET:
-//                    mbedtls_printf( " connection was reset by peer\n" );
-//                    break;
-//
-//                default:
-//                    mbedtls_printf( " mbedtls_ssl_read returned -0x%x\n", -r );
-//                    break;
-//            }
-//
-//            break;
-//        }
-//
-//        len = r;
-//        mbedtls_printf( " %d bytes read\n\n%s", len, (char *) buf );
-//
-//        if( r > 0 )
-//            break;
-//    } while( 1 );
 }
