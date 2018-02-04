@@ -24,6 +24,11 @@ enum tls_op_type {
 };
 typedef struct evt_tls_s evt_tls_t;
 typedef void (*evt_handshake_cb)(evt_tls_t *, int status);
+typedef void (*evt_write_cb)(evt_tls_t *, int status);
+typedef void (*evt_read_cb)(evt_tls_t *con, const char *buf, int size);
+
+int evt_tls_read(evt_tls_t *c, evt_read_cb on_read );
+int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
 
 enum evt_endpt_t {
     ENDPT_IS_CLIENT
@@ -43,6 +48,9 @@ struct evt_tls_s
     mbedtls_x509_crt srvcert;
     mbedtls_pk_context pkey;
     evt_handshake_cb hshake_cb;
+    evt_read_cb read_cb;
+    evt_write_cb write_cb;
+
     unsigned char nio_data[16*1024];
     int nio_data_len;
     int offset;
@@ -93,10 +101,11 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         }
 
         case EVT_TLS_OP_READ: {
-          //get num bytes, allocates buffer and read into it
+          //get num of available bytes, allocates buffer and read into it
           //trick to get number of available byte,
           mbedtls_ssl_read(&conn->ssl, NULL, 0);
           size_t sz = mbedtls_ssl_get_bytes_avail(&conn->ssl) + 1;
+
           bufr = malloc(sz);
           assert( bufr != NULL && "Memory alloc failed");
           memset( bufr, 0, sz);
@@ -111,11 +120,12 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                   goto err;
               }
           } while( r != 0);
-          //TODO: callback to be invoked
+        
+          if (r == 0 && conn->read_cb) {
+              conn->read_cb(conn, (char*) bufr, sz -1);
+          }
 
           printf("Received msg : %s\n", bufr);
-          free(bufr);
-          bufr = NULL;
           break;
         }
 
@@ -126,13 +136,15 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
                     break;
                }
+               //cb should be triggered when error occurs,
                if ( r < 0 ) {
                    goto err;
                }
                sz -= r;
            }
-           if ( sz == 0) {
-                   //call the write callback
+           //Reaching here means data written successfully, invoke the cb now
+           if ( sz == 0 && conn->write_cb) {
+               conn->write_cb(conn, r);
            }
             break;
         }
@@ -154,10 +166,8 @@ err:
 
 int my_send(void *ctx, const unsigned char *buf, size_t len)
 {
-    int ret = 0;
     evt_tls_t *tls = (evt_tls_t*)ctx;
     evt_tls_t* self = (evt_tls_t*)tls->data;
-    mbedtls_printf("%s: Sending %u bytes\n",role[evt_tls_get_role(self)], len);
     if (tls->nio_data_len) {
         return MBEDTLS_ERR_SSL_WANT_WRITE;
     }
@@ -171,7 +181,6 @@ int my_recv(void *ctx, unsigned char *buf, size_t len)
 {
     evt_tls_t* tls = (evt_tls_t*)ctx;
     evt_tls_t* self = (evt_tls_t*)tls->data;
-    mbedtls_printf("%s : reading %u bytes\n",role[evt_tls_get_role(self)],len );
     if (self->nio_data_len < len ) {
         return MBEDTLS_ERR_SSL_WANT_READ;
     }
@@ -181,13 +190,34 @@ int my_recv(void *ctx, unsigned char *buf, size_t len)
     return len;
 }
 
+
+void on_write(evt_tls_t *evt, int status)
+{
+    mbedtls_printf("write_cb: Data written\n");
+}
+
+int evt_tls_read(evt_tls_t *evt, evt_read_cb on_read)
+{
+    assert( evt != NULL);
+    evt->read_cb = on_read;
+    return evt__tls__op(evt, EVT_TLS_OP_READ, NULL, 0); 
+}
+
+int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
+{
+    assert( c != NULL);
+    assert(msg != NULL && "Trying to write empty msg");
+    c->write_cb = on_write;
+    return evt__tls__op(c, EVT_TLS_OP_WRITE, msg, str_len); 
+}
+
 static void handshake_loop(evt_tls_t *src, evt_tls_t *dest)
 {
     evt_tls_t *t = NULL;
-    int ret = 0;
     for(;;) {
         if ( !evt_tls_is_handshake_done(&src->ssl)) {
-            ret = evt__tls__op(src,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+            evt__tls__op(src,  EVT_TLS_OP_HANDSHAKE, NULL, 0);
+
         }
         else break;
         t = dest;
@@ -210,17 +240,23 @@ static void my_debug( void *ctx, int level,
     fflush(  (FILE *) ctx  );
 }
 
+void on_read(evt_tls_t *evt, const char *buf, int len)
+{
+    mbedtls_printf("Read cb received msg: %s", buf);
+    free(buf);
+}
+
 void handshake_cb(evt_tls_t *evt, int status)
 {
     mbedtls_printf("%s: Handshake done\n",role[evt_tls_get_role(evt)]);
     char *str = "Hello ARM mbedtls";
     if ( 0 == status) {
         if (evt_tls_get_role(evt) == ENDPT_IS_CLIENT) {
-            evt__tls__op(evt, EVT_TLS_OP_READ, 0, 0);
+            evt_tls_read(evt, on_read);
         }
         else 
         {
-            evt__tls__op(evt, EVT_TLS_OP_WRITE, str, strlen(str));
+            evt_tls_write(evt, str, strlen(str), on_write);
         }
     }
 }
