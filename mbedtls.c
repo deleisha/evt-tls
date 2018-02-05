@@ -26,6 +26,7 @@ typedef struct evt_tls_s evt_tls_t;
 typedef void (*evt_handshake_cb)(evt_tls_t *, int status);
 typedef void (*evt_write_cb)(evt_tls_t *, int status);
 typedef void (*evt_read_cb)(evt_tls_t *con, const char *buf, int size);
+typedef void (*evt_close_cb)(evt_tls_t *con, int status);
 
 int evt_tls_read(evt_tls_t *c, evt_read_cb on_read );
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
@@ -50,6 +51,7 @@ struct evt_tls_s
     evt_handshake_cb hshake_cb;
     evt_read_cb read_cb;
     evt_write_cb write_cb;
+    evt_close_cb close_cb;
 
     unsigned char nio_data[16*1024];
     int nio_data_len;
@@ -75,6 +77,7 @@ evt_endpt_t evt_tls_get_role(const evt_tls_t *t)
 static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 {
     int r = 0;
+    int offset = 0;
     unsigned char *bufr = NULL;
     char err[128] = {0};
     switch ( op ) {
@@ -109,18 +112,17 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
           bufr = malloc(sz);
           assert( bufr != NULL && "Memory alloc failed");
           memset( bufr, 0, sz);
-          do {
-              r = mbedtls_ssl_read( &(conn->ssl), bufr, sz - 1);
-              if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
-                  break;
-              }
-              //TODO: replace by proper error handling
-              //including reseting context or freeing it
-              if ( r < 0 ) {
-                  goto err;
-              }
-          } while( r != 0);
-        
+
+          r = mbedtls_ssl_read( &(conn->ssl), bufr, sz - 1);
+          if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
+              break;
+          }
+          //TODO: replace by proper error handling
+          //including reseting context or freeing it
+          if ( r < 0 ) {
+              goto err;
+          }
+
           if (r == 0 && conn->read_cb) {
               conn->read_cb(conn, (char*) bufr, sz -1);
           }
@@ -130,8 +132,10 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         }
 
         case EVT_TLS_OP_WRITE: {
-           while( sz > 0) {
-               r = mbedtls_ssl_write(&conn->ssl, (const unsigned char*)buf + r, sz);
+           for( offset = 0; offset < sz; offset += r) {
+               r = mbedtls_ssl_write(&conn->ssl,
+                       (const unsigned char*)buf + offset, sz - offset
+                   );
                assert( r > 0 && "ssl write failed");
                if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
                     break;
@@ -140,7 +144,6 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                if ( r < 0 ) {
                    goto err;
                }
-               sz -= r;
            }
            //Reaching here means data written successfully, invoke the cb now
            if ( sz == 0 && conn->write_cb) {
@@ -150,11 +153,24 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         }
 
         case EVT_TLS_OP_SHUTDOWN: {
-            break;
-        }
+            do {
+                r = mbedtls_ssl_close_notify(&conn->ssl);
+                if ( r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                    break;
+                }
+                if ( r < 0 ) {
+                    goto err;
+                }
+            } while (0 /*r == MBEDTLS_ERR_SSL_WANT_WRITE*/);
 
-        default:
+            if (r == 0 && conn->close_cb) {
+                conn->close_cb(conn, r);
+            }
             break;
+      }
+        default:
+        assert( 0 && "Unsupported Operation Received");
+        break;
     }
     return r;
 
@@ -190,17 +206,35 @@ int my_recv(void *ctx, unsigned char *buf, size_t len)
     return len;
 }
 
-
-void on_write(evt_tls_t *evt, int status)
+void on_close(evt_tls_t *evt, int status)
 {
-    mbedtls_printf("write_cb: Data written\n");
+}
+
+int evt_tls_close( evt_tls_t *evt, evt_close_cb on_close)
+{
+    assert( evt != NULL && "invalid argument");
+    evt->close_cb = on_close;
+    return evt__tls__op(evt, EVT_TLS_OP_READ, NULL, 0); 
+}
+
+
+
+void on_read(evt_tls_t *evt, const char *buf, int len)
+{
+    mbedtls_printf("Read cb received msg: %s", buf);
+    free(buf);
 }
 
 int evt_tls_read(evt_tls_t *evt, evt_read_cb on_read)
 {
-    assert( evt != NULL);
+    assert( evt != NULL && "invalid argument");
     evt->read_cb = on_read;
     return evt__tls__op(evt, EVT_TLS_OP_READ, NULL, 0); 
+}
+
+void on_write(evt_tls_t *evt, int status)
+{
+    mbedtls_printf("write_cb: Data written\n");
 }
 
 int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
@@ -240,11 +274,6 @@ static void my_debug( void *ctx, int level,
     fflush(  (FILE *) ctx  );
 }
 
-void on_read(evt_tls_t *evt, const char *buf, int len)
-{
-    mbedtls_printf("Read cb received msg: %s", buf);
-    free(buf);
-}
 
 void handshake_cb(evt_tls_t *evt, int status)
 {
