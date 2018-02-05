@@ -11,6 +11,11 @@
 #include <assert.h>
 #include "evt_tls.h"
 
+/*
+ *All the asserts used in the code are possible targets for error
+ * handling/error reporting
+*/
+
 evt_endpt_t evt_tls_get_role(const evt_tls_t *t)
 {
     assert(t != NULL);
@@ -199,18 +204,23 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
     return t->key_set;
 }
 
-static int evt__send_pending(evt_tls_t *conn, void *buf)
+static int evt__send_pending(evt_tls_t *conn)
 {
     assert( conn != NULL);
     int pending = BIO_pending(conn->app_bio);
     if ( !(pending > 0) )
         return 0;
 
+    void *buf = calloc(1, pending);
+    assert(buf != NULL && "Memory alloc failed");
+    if (!buf) return 0;
+
     int p = BIO_read(conn->app_bio, buf, pending);
     assert(p == pending);
 
     assert( conn->writer != NULL && "You need to set network writer first");
     p = conn->writer(conn, buf, p);
+    free(buf);
     return p;
 }
 
@@ -223,7 +233,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(conn->ssl);
-            bytes = evt__send_pending(conn, tbuf);
+            bytes = evt__send_pending(conn);
             assert( bytes >= 0);
             if (1 == r || 0 == r) {
                 assert(conn->hshake_cb != NULL );
@@ -235,7 +245,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         case EVT_TLS_OP_READ: {
             r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
             if ( r == 0 ) goto handle_shutdown;
-            bytes = evt__send_pending(conn, tbuf);
+            bytes = evt__send_pending(conn);
             assert(conn->read_cb != NULL);
             conn->read_cb(conn, tbuf, r);
             break;
@@ -245,7 +255,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
             assert( sz > 0 && "number of bytes to write should be positive");
             r = SSL_write(conn->ssl, buf, sz);
             if ( 0 == r) goto handle_shutdown;
-            bytes = evt__send_pending(conn, tbuf);
+            bytes = evt__send_pending(conn);
             if ( r > 0 && conn->write_cb) {
                     conn->write_cb(conn, r);
             }
@@ -265,7 +275,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 
     handle_shutdown:
         r = SSL_shutdown(conn->ssl);
-        bytes = evt__send_pending(conn, tbuf);
+        bytes = evt__send_pending(conn);
         if ( (1 == r)  && conn->close_cb ) {
             conn->close_cb(conn, r);
         }
@@ -274,15 +284,23 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
 {
-    int rv =  BIO_write(c->app_bio, data, sz);
-    assert( rv == sz);
+    int offset = 0;
+    int rv = 0;
+    int i  = 0;
+    assert( data != NULL && "invalid argument passed");
+    assert( sz > 0 && "Size of data should be positive");
+    for( offset = 0; offset < sz; offset += i ) {
+        //handle error condition
+        i =  BIO_write(c->app_bio, data + offset, sz - offset);
+        assert( i > 0 && "BIO_write failed");
 
-    //if handshake is not complete, do it again
-    if (SSL_is_init_finished(c->ssl)) {
-        rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
-    }
-    else {
-        rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
+        //if handshake is not complete, do it again
+        if (SSL_is_init_finished(c->ssl)) {
+            rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
+        }
+        else {
+            rv = evt__tls__op(c, EVT_TLS_OP_HANDSHAKE, NULL, 0);
+        }
     }
     return rv;
 }
