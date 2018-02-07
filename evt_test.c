@@ -114,7 +114,6 @@ int test_net_wrtr(evt_tls_t *c, void *buf, int sz)
         test_data.stalled = 0;
     }
     return 0;
-
 }
 
 int start_nio(test_tls_t *source, test_tls_t *destination)

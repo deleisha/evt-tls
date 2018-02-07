@@ -9,13 +9,17 @@
 //%///////////////////////////////////////////////////////////////////////////
 
 #include "uv_tls.h"
+#include <signal.h>
 
 void on_write(uv_tls_t *tls, int status) {
     uv_tls_close(tls, (uv_tls_close_cb)free);
 }
 
 void uv_rd_cb( uv_tls_t *strm, ssize_t nrd, const uv_buf_t *bfr) {
-    if ( nrd <= 0 ) return;
+    if ( nrd <= 0 ) 
+    {
+        return;
+    }
     uv_tls_write(strm, (uv_buf_t*)bfr, on_write);
 }
 
@@ -48,6 +52,7 @@ int main() {
     evt_ctx_t ctx;
     struct sockaddr_in bind_local;
 
+    signal(SIGPIPE, SIG_IGN);
     evt_ctx_init_ex(&ctx, "server-cert.pem", "server-key.pem");
     evt_ctx_set_nio(&ctx, NULL, uv_tls_writer);
 

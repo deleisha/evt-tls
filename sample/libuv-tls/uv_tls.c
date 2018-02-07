@@ -109,6 +109,7 @@ void my_uclose_cb(uv_handle_t *handle)
 {
     uv_tls_t *utls = (uv_tls_t*)handle->data;
     assert( utls->tls_cls_cb != NULL);
+    evt_tls_free(utls->tls);
     utls->tls_cls_cb(utls);
     free(handle);
 }
@@ -118,7 +119,6 @@ void on_close(evt_tls_t *tls, int status)
     uv_tls_t *ut = (uv_tls_t*)tls->data;
     assert( ut->tls_cls_cb != NULL);
 
-    evt_tls_free(tls);
     if ( !uv_is_closing((uv_handle_t*)(ut->tcp_hdl)))
         uv_close( (uv_handle_t*)(ut->tcp_hdl), my_uclose_cb);
 }

@@ -257,13 +257,27 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
             if ( 0 == r) goto handle_shutdown;
             bytes = evt__send_pending(conn);
             if ( r > 0 && conn->write_cb) {
-                    conn->write_cb(conn, r);
+                conn->write_cb(conn, r);
             }
             break;
         }
 
+        /* we initiate shutdown process, send the close_notify but we are not
+         * sure if peer will sent their close_notify hence fire the callback
+         * if the peer replied, it will be processed in SSL_read returning 0
+         * and jump to handle_shutdown
+         *
+         * No check for SSL_shutdown done as it may be possible that user
+         * called close upon receive of EOF.
+         * TODO: Find a elegant way later
+         * */
+
         case EVT_TLS_OP_SHUTDOWN: {
-            goto handle_shutdown;
+            r = SSL_shutdown(conn->ssl);
+            bytes = evt__send_pending(conn);
+            if ( conn->close_cb ) {
+                conn->close_cb(conn, r);
+            }
             break;
         }
 
@@ -275,6 +289,8 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 
     handle_shutdown:
         r = SSL_shutdown(conn->ssl);
+        //it might be possible that peer send close_notify and close the network
+        //hence, no check if sending is complete
         bytes = evt__send_pending(conn);
         if ( (1 == r)  && conn->close_cb ) {
             conn->close_cb(conn, r);
@@ -292,7 +308,6 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
     for( offset = 0; offset < sz; offset += i ) {
         //handle error condition
         i =  BIO_write(c->app_bio, data + offset, sz - offset);
-        assert( i > 0 && "BIO_write failed");
 
         //if handshake is not complete, do it again
         if (SSL_is_init_finished(c->ssl)) {
