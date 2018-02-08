@@ -58,6 +58,13 @@ int uv_tls_init(evt_ctx_t *ctx, uv_tcp_t *tcp, uv_tls_t *endpt)
     return r;
 }
 
+void on_tcp_eof(uv_handle_t *handle)
+{
+    uv_tls_t *utls = (uv_tls_t*)handle->data;
+    evt_tls_free(utls->tls);
+    free(handle);
+}
+
 void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
 {
     uv_tls_t *parent = (uv_tls_t*)stream->data;
@@ -65,7 +72,13 @@ void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data)
     assert( parent != NULL);
     if ( nrd <= 0 ) {
         if( nrd == UV_EOF) {
-            uv_tls_close(parent, (uv_tls_close_cb)free);
+            if ( evt_tls_is_handshake_over(parent->tls) ) {
+                uv_tls_close(parent, (uv_tls_close_cb)free);
+            }
+            else {
+                //if handshake is not over, simply tear down without close_notify
+                uv_close((uv_handle_t*)stream, on_tcp_eof);
+            }
         }
         free(data->base);
         return;

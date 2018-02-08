@@ -138,6 +138,9 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz);
 void evt_tls_set_writer(evt_tls_t *tls, net_wrtr my_writer);
 void evt_tls_set_reader(evt_tls_t *tls, net_rdr my_reader);
 
+/*Check if handshake is over, return 1 if handshake is done otherwise 0 */
+int evt_tls_is_handshake_over(const evt_tls_t *evt);
+
 /*Perform a handshake for client role endpoint, equivalent of `SSL_connect`
 Upon completion, `evt_handshake_cb is called, status == 0 for failure and
 1 otherwise */
@@ -192,7 +195,7 @@ SSL *evt_get_ssl(const evt_tls_t *tls);
 /*check if incoming data is TLS clientHello.
 return 1 if the stream is TLS and 0 otherwise
 */
-int is_tls_stream(const char *bfr, const ssize_t nrd);
+int evt_is_tls_stream(const char *bfr, const ssize_t nrd);
 
 
 #ifdef __cplusplus 

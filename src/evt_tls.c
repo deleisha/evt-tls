@@ -298,6 +298,11 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
         return r;
 }
 
+int evt_tls_is_handshake_over( const evt_tls_t *evt)
+{
+    return SSL_is_init_finished(evt->ssl);
+}
+
 int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
 {
     int offset = 0;
@@ -310,7 +315,7 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
         i =  BIO_write(c->app_bio, data + offset, sz - offset);
 
         //if handshake is not complete, do it again
-        if (SSL_is_init_finished(c->ssl)) {
+        if ( evt_tls_is_handshake_over(c) ) {
             rv = evt__tls__op(c, EVT_TLS_OP_READ, NULL, 0);
         }
         else {
@@ -408,7 +413,7 @@ void evt_ctx_free(evt_ctx_t *ctx)
 
 
 // adapted from Openssl's s23_srvr.c code
-int is_tls_stream(const char *bfr, const ssize_t nrd)
+int evt_is_tls_stream(const char *bfr, const ssize_t nrd)
 {
     int is_tls = 0;
     assert( nrd >= 11);

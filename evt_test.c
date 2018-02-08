@@ -16,6 +16,8 @@ typedef struct test_tls_s test_tls_t;
 
 struct test_tls_s {
     evt_tls_t *endpt;
+    //indicates whether the endpoint is closing or closed
+    int is_closing; 
 };
 
 //Needed for pretty printing
@@ -36,6 +38,7 @@ int test_tls_init(evt_ctx_t *ctx, test_tls_t *tst_tls)
     memset( tst_tls, 0, sizeof *tst_tls);
     evt_tls_t *t = evt_ctx_get_tls(ctx);
     assert(t != NULL);
+    //Now user data in evt_tls_t is test_tls_t
     t->data = tst_tls;
     tst_tls->endpt = t;
     return 0;
@@ -49,15 +52,18 @@ void cls(evt_tls_t *evt, int status)
 
 int test_tls_close(test_tls_t *t, evt_close_cb cls)
 {
-    return evt_tls_close(t->endpt, cls);
+    int rv = 0;
+    rv = evt_tls_close(t->endpt, cls);
+    t->is_closing = 1;
+    return rv;
 }
 
 void on_client_rd( evt_tls_t *tls, char *buf, int sz)
 {
     printf("[%s]: on_client_rd called ++++++++\n", role[evt_tls_get_role(tls)]);
     printf("%s", (char*)buf);
-
     test_tls_close((test_tls_t *)tls->data, cls);
+
 }
 
 void on_write(evt_tls_t *tls, int status)
@@ -71,7 +77,7 @@ void on_server_wr(evt_tls_t *tls, int status)
 {
     assert(status > 0);
     printf("[%s]: on_server_wr called ++++++++\n", role[evt_tls_get_role(tls)]);
-    //test_tls_close((test_tls_t *)tls->data, cls);
+    test_tls_close((test_tls_t *)tls->data, cls);
 }
 
 void on_server_rd( evt_tls_t *tls, char *buf, int sz)
@@ -98,7 +104,7 @@ void on_connect(evt_tls_t *tls, int status)
         assert( r = str_len);
     }
     else { //handle ssl_shutdown
-        test_tls_close((test_tls_t*)tls, cls);
+        test_tls_close((test_tls_t*)tls->data, cls);
     }
 }
 
@@ -120,6 +126,8 @@ int start_nio(test_tls_t *source, test_tls_t *destination)
 {
     for(;;) {
         if ( test_data.stalled ) break;
+        //don't write to closed handle
+        if ( destination->is_closing ) break;
         test_data.stalled = 1;
         evt_tls_feed_data(destination->endpt, test_data.data, test_data.sz);
         test_tls_t *tmp = destination;
@@ -143,7 +151,7 @@ void on_accept(evt_tls_t *svc, int status)
         evt_tls_read(svc, on_server_rd );
     }
     else {
-        test_tls_close((test_tls_t*)svc, cls);
+        test_tls_close((test_tls_t*)svc->data, cls);
     }
 }
 
