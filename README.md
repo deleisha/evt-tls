@@ -4,7 +4,9 @@ use OpenSSL as an state machine.
 
 The evt-tls will evaluate and try to support other TLS library like libtls, mbedtls etc.
 
-`Keep Watching for More Actions on This Space`
+The work is in alpha stage and lot of work is still going on to make production ready. 
+
+`Until then, Keep Watching for More Actions on This Space`
 
 # How the evt-tls work
 evt-tls uses the BIO-pair from OpenSSL, which is the suggested way, for using TLS engine for handling network I/O(nio) independently. Hence, user is responsible for nio and feed TLS engine with whatever data we receive from network. Evt will unwrap the data and give you application data via a callback. It also wraps data and write to network.
