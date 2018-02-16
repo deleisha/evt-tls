@@ -1,3 +1,5 @@
+# This is work in progress and API might change
+
 # evt-tls
 evt-tls is an abstraction layer of OpenSSL using bio pair to expose callback based asynchronous API and should integrate easily with any event based networking library like libuv, libevent and libev or any other network library which want to
 use OpenSSL as an state machine.
