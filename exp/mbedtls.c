@@ -17,65 +17,6 @@
 #define EVT_WANT_POLLIN           -2
 #define EVT_WANT_POLLOUT          -3
 
-typedef evt_config_t evt_config_t;
-struct evt_config_t {
-    const char *ca_store;
-    const char *crl_path;
-    const char *cert_file;
-    const char *key_file;
-    int        ciphers;
-    uint32_t   protocols;
-    uint32_t   transport; /* TCP or UDP - Default is TCP */
-    uint32_t   verify_peer;
-    int        ca_depth;
-    int        use_count;
-};
-
-
-
-static evt_config_t *evt_default;
-
-evt_config_t*
-evt_cfg_new(void)
-{
-    if ( evt_default ) return evt_default;
-
-    if ( calloc(1, sizeof(*evt_default)) == NULL )
-            goto err;
-
-    evt_default->use_count = 1;
-
-    evt_cfg_set_ciphers(evt_default, "TLS1.2");
-    evt_cfg_set_protocols(evt_default, EVT_TLS_1_2);
-    evt_cfg_set_transport(evt_default, EVT_TLS);
-    evt_default->verify_peer = 3;
-    evt_default->ca_depth = 5;
-
-err:
-    evt_cfg_free(evt_default);
-    evt_default = NULL;
-    return NULL;
-}
-
-char *set_str( const char *src, char **dest)
-{
-    int rv = 1;
-    if ( src != NULL) {
-        if ((*dest = strdup(src)) == NULL)
-            goto out;
-    }
-    rv = 0;
-out:
-    return rv;
-}
-
-void evt_cfg_free( evt_config_t *cfg)
-{
-    if (cfg) return;
-
-    free(cfg->ciphers);
-}
-
 
 //supported TLS operation
 enum tls_op_type {

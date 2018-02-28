@@ -21,14 +21,16 @@ typedef struct evt_config_s
     const char *cert_file;
     const char *key_file;
     const char *ciphers;
-    int        cfg_err;
-    uint32_t   protocols;
-    uint32_t   transport; /* TCP or UDP - Default is TCP */
-    uint32_t   verify_peer;
-    int        ca_depth;
-    int        use_count;
+
+    int         cfg_err;
+    uint32_t    protocols;
+    uint32_t    transport; /* TCP or UDP - Default is TCP */
+    uint32_t    verify_peer;
+    int         ca_depth;
+    int         use_count;
 
 }evt_config_t;
+static evt_config_t *evt_default;
 
 
 typedef enum evt_endpt_t {
@@ -37,15 +39,21 @@ typedef enum evt_endpt_t {
    ,ENDPT_IS_SERVER
 }evt_endpt_t;
 
+
+typedef struct evt_tls_s evt_tls_t;
+typedef void (*evt_handshake_cb)( evt_tls_t *conn, int status);
 /* generate this through macro when dtls need to be supported */
-typedef struct evt_tls_s {
+struct evt_tls_s {
+    int                            tls_err;
+    evt_endpt_t                    role;
+    uint32_t                       state;
+
     void                           *user_data;
 
     evt_config_t                   *config;
 
-    int                            tls_err;
-    evt_endpt_t                    role;
-    uint32_t                       state;
+    evt_handshake_cb               handshake_cb;
+
 
     mbedtls_entropy_context        entropy;
     mbedtls_ctr_drbg_context       ctr_drbg;
@@ -53,8 +61,9 @@ typedef struct evt_tls_s {
     mbedtls_ssl_config             mconf;
     mbedtls_x509_crt               cert;
     mbedtls_pk_context             pkey;
+};
 
-} evt_tls_t;
+
 
 typedef enum evt_error_t {
     EVT_ERR_NONE = 0
@@ -64,6 +73,10 @@ typedef enum evt_error_t {
    ,EVT_ERR_NO_KEYPAIR
    ,EVT_ERR_CIPHER_FAIL
 
+   ,EVT_ERR_NOROLE
+   ,EVT_ERR_HSHAKE_DONE
+   ,EVT_ERR_NOCFG
+
    ,EVT_ERR_MAX_COUNT /* Don't add any entry after this line */
 } evt_error_t;
 
@@ -72,8 +85,16 @@ const char *err_str[] = {
    ,"Insufficient memory"
    ,"Cert or Key or Both required"
    ,"Cipher setting failed"
+   ,"No role specified"
+   ,"Handshake completed already"
+   ,"Not configured yet"
 };
 
+void
+evt_tls_set_err( evt_tls_t *tls, evt_error_t err)
+{
+    tls->tls_err = err;
+}
 
 evt_tls_t *evt_tls_new(void)
 {
@@ -138,6 +159,83 @@ evt_tls_t *evt_tls_server(void)
     server->role = ENDPT_IS_SERVER;
     
     return server;
+}
+
+void evt_cfg_del( evt_config_t *cfg);
+int evt_configure( evt_tls_t *tls, evt_config_t *cfg)
+{
+    if ( cfg == NULL) {
+        cfg = evt_default;
+    }
+
+    evt_cfg_del(tls->config);
+    tls->config = cfg;
+    cfg->use_count++;
+
+    return 0;
+}
+
+static int
+set_mbedtls_config( evt_tls_t *tls)
+{
+    /* no check done as the caller already have checked these */
+    int endpt = ENDPT_IS_SERVER ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT;
+
+    int transport = EVT_IS_TLS ? MBEDTLS_SSL_TRANSPORT_STREAM :
+                    MBEDTLS_SSL_TRANSPORT_DATAGRAM;
+
+    int preset;
+
+    
+    mbedtls_ssl_config_defaults(&tls->mconfig, endpt, transport, preset);
+
+}
+
+
+#define EVT_HANDSHAKE_COMPLETED                     (1 << 3)
+int evt_tls_handshake(evt_tls_t *conn, evt_handshake_cb hcb)
+{
+    int rv = -1;
+
+    if ( conn->role == ENDPT_IS_UNSPECIFIED ) {
+        evt_tls_set_err(conn, EVT_ERR_NOROLE);
+        goto err;
+    }
+
+    if ( conn->state & EVT_HANDSHAKE_COMPLETED) {
+        evt_tls_set_err(conn, EVT_ERR_HSHAKE_DONE);
+        goto err;
+    }
+
+    if ( conn->config == NULL) {
+        evt_tls_set_err(conn, EVT_ERR_NOCFG);
+        goto err;
+    }
+
+    conn->handshake_cb = hcb;
+
+    if ( conn->role == ENDPT_IS_SERVER ) {
+        //if (1) //accept
+    }
+    else {
+        assert( conn->role == ENDPT_IS_CLIENT && "invalid role");
+        //if (2) //connect
+    }
+
+    rv = 0;
+
+err:
+    return rv;
+}
+
+int evt_tls_connect(evt_tls_t *conn, evt_handshake_cb hcb)
+{
+    return evt_tls_handshake(conn, hcb);
+}
+
+int evt_tls_accept(evt_tls_t *conn, evt_handshake_cb hcb)
+{
+    return evt_tls_handshake(conn, hcb);
 }
 
 
@@ -234,9 +332,9 @@ void evt_cfg_set_transport(evt_config_t *cfg, int transport)
     cfg->transport = transport;
 }
 
-#define EVT_VERIFY_NONE             (1 << 1)
-#define EVT_VERIFY_OPTIONAL         (1 << 2)
-#define EVT_VERIFY_REQUIRED         (1 << 3)
+#define EVT_VERIFY_NONE             (1 << 0)
+#define EVT_VERIFY_OPTIONAL         (1 << 1)
+#define EVT_VERIFY_REQUIRED         (1 << 2)
 
 
 void evt_cfg_set_verify(evt_config_t *cfg, int mode)
@@ -264,7 +362,6 @@ void evt_cfg_del( evt_config_t *cfg)
 #define EVT_IS_DTLS   2
 
 
-static evt_config_t *evt_default;
 
 evt_config_t* evt_cfg_new(void)
 {
