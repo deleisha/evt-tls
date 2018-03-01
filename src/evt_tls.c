@@ -244,14 +244,21 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_READ: {
             r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
-            do {
-                if ( r == 0 ) goto handle_shutdown;
+            if ( r == 0 ) goto handle_shutdown;
 
+            if ( r > 0 ) {
+                if ( conn->read_cb ) {
+                    conn->read_cb(conn, tbuf, r);
+                }
+            }
+            else {
+                //write pending data, if nothing is pending, we assume
+                //that SSL_read failed and triger the read_cb
                 bytes = evt__send_pending(conn);
-                assert(conn->read_cb != NULL);
-                conn->read_cb(conn, tbuf, r);
-                r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
-            } while (r > 0); //do it again if required
+                if ( bytes == 0 && conn->read_cb) {
+                    conn->read_cb(conn, tbuf, r);
+                }
+            }
             break;
         }
 
