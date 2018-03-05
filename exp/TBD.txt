@@ -1,0 +1,2 @@
+1) revisit the default config implementation
+2) revisit the configuration part
