@@ -37,7 +37,6 @@ void on_tls_handshake(uv_tls_t *tls, int status)
     uv_buf_t dcrypted;
     dcrypted.base = "Hello from evt-tls";
     dcrypted.len = strlen(dcrypted.base);
-    sleep(10);
 
     if ( 0 == status ) // TLS connection not failed
     {
