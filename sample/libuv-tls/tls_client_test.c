@@ -8,8 +8,9 @@
 //
 //%///////////////////////////////////////////////////////////////////////////
 
-#include <assert.h>
 #include "uv_tls.h"
+#include <assert.h>
+#include <unistd.h>
 
 void echo_read(uv_tls_t *strm, ssize_t nrd, const uv_buf_t *bfr)
 {
@@ -36,6 +37,7 @@ void on_tls_handshake(uv_tls_t *tls, int status)
     uv_buf_t dcrypted;
     dcrypted.base = "Hello from evt-tls";
     dcrypted.len = strlen(dcrypted.base);
+    sleep(10);
 
     if ( 0 == status ) // TLS connection not failed
     {

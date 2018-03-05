@@ -1,208 +1,172 @@
-#ifndef EVT_MBEDTLS_H
-#define EVT_MBEDTLS_H
-
 #include <mbedtls/ssl.h>
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/debug.h"
 
 
+typedef struct evt_config_s
+{
+    //all const chars are dynamically managed
+    const char *ca_store;
+    const char *ca_file;
+    const char *crl_path;
+    const char *cert_file;
+    const char *key_file;
+    const char *ciphers;
 
-#define TLS_CIPHERS_DEFAULT	"TLSv1.2+AEAD+ECDHE:TLSv1.2+AEAD+DHE"
-#define TLS_CIPHERS_COMPAT	"HIGH:!aNULL"
-#define TLS_CIPHERS_LEGACY	"HIGH:MEDIUM:!aNULL"
-#define TLS_CIPHERS_ALL		"ALL:!aNULL:!eNULL"
+    int         cfg_err;
+    uint32_t    protocols;
+    uint32_t    transport; /* TCP or UDP - Default is TCP */
+    uint32_t    verify_peer;
+    int         ca_depth;
+    int         use_count;
+}evt_config_t;
 
-#define TLS_ECDHE_CURVES	"X25519,P-256,P-384"
 
-struct tls_error {
-	char *msg;
-	int num;
-	int tls;
+typedef enum evt_endpt_t {
+    ENDPT_IS_UNSPECIFIED
+   ,ENDPT_IS_CLIENT
+   ,ENDPT_IS_SERVER
+}evt_endpt_t;
+
+
+typedef struct evt_tls_s evt_tls_t;
+typedef void (*evt_handshake_cb)( evt_tls_t *conn, int status);
+typedef const char* (*evt_cacert_cb)(evt_tls_t *);
+/* generate this through macro when dtls need to be supported */
+struct evt_tls_s {
+    int                            tls_err;
+    evt_endpt_t                    role;
+    uint32_t                       state;
+
+    void                           *user_data;
+
+    evt_config_t                   *config;
+
+    evt_handshake_cb               handshake_cb;
+    evt_cacert_cb                  get_ca_cert;
+
+
+    mbedtls_entropy_context        entropy;
+    mbedtls_ctr_drbg_context       ctr_drbg;
+    mbedtls_ssl_context            ssl_conn;
+    mbedtls_ssl_config             mconf;
+    mbedtls_x509_crt               cert;
+    mbedtls_x509_crt               ca_certs;
+    mbedtls_pk_context             pkey;
 };
 
-struct tls_keypair {
-	struct tls_keypair *next;
+typedef enum evt_error_t {
+    EVT_ERR_NONE = 0
 
-	char *cert_mem;
-	size_t cert_len;
-	char *key_mem;
-	size_t key_len;
-	char *pubkey_hash;
+   ,EVT_ERR_NOMEM
+
+   ,EVT_ERR_NO_KEYPAIR
+   ,EVT_ERR_CIPHER_FAIL
+
+   ,EVT_ERR_NOROLE
+   ,EVT_ERR_HSHAKE_DONE
+   ,EVT_ERR_NOCFG
+   ,EVT_ERR_BADCERT
+   ,EVT_ERR_HSHAKE
+   ,EVT_ERR_ESEED
+
+   ,EVT_ERR_MAX_COUNT /* Don't add any entry after this line */
+} evt_error_t;
+
+static const char *err_str[] = {
+    "No error found"
+   ,"Insufficient memory"
+   ,"Cert or Key or Both required"
+   ,"Cipher setting failed"
+   ,"No role specified"
+   ,"Handshake completed already"
+   ,"Not configured yet"
+   ,"Bad cert detected"
+   ,"Handshake failed at underlying library"
+   ,"Seeding failed"
 };
 
 
+#define EVT_TLS_1_0                 (1 << 0)
+#define EVT_TLS_1_1                 (1 << 1)
+#define EVT_TLS_1_2                 (1 << 2)
 
-#define TLS_NUM_TICKETS				4
-#define TLS_TICKET_NAME_SIZE			16
-#define TLS_TICKET_AES_SIZE			32
-#define TLS_TICKET_HMAC_SIZE			16
+#define EVT_PROTOCOLS_TLS_1         (EVT_TLS_1_0|EVT_TLS_1_1|EVT_TLS_1_2)
 
-struct tls_config {
-	struct tls_error error;
-
-	int refcount;
-
-	const char *ca_path;
-	char *ca_mem;
-	size_t ca_len;
-	const char *ciphers;
-	int ciphers_server;
-	struct tls_keypair *keypair;
-	uint32_t protocols;
-	int verify_cert;
-	int verify_client;
-	int verify_depth;
-	int verify_name;
-	int verify_time;
-	int skip_private_key_check;
-};
-
-struct tls_conninfo {
-	char *cipher;
-	char *servername;
-	char *version;
-
-	char *hash;
-	char *issuer;
-	char *subject;
-
-	uint8_t *peer_cert;
-	size_t peer_cert_len;
-
-	time_t notbefore;
-	time_t notafter;
-};
-
-#define TLS_CLIENT		(1 << 0)
-#define TLS_SERVER		(1 << 1)
-#define TLS_SERVER_CONN		(1 << 2)
-
-#define TLS_EOF_NO_CLOSE_NOTIFY	(1 << 0)
-#define TLS_CONNECTED		(1 << 1)
-#define TLS_HANDSHAKE_COMPLETE	(1 << 2)
-#define TLS_SSL_NEEDS_SHUTDOWN	(1 << 3)
-
-};
+#define EVT_TLS_PROTOCOL_ALL        EVT_PROTOCOLS_TLS_1
+#define EVT_TLS_DEFAULT_PROTOCOL    EVT_TLS_1_2
+#define EVT_DEFAULT_CIPHERS   "TLSv1.2"
 
 
-struct tls {
-	struct tls_config *config;
-	struct tls_keypair *keypair;
 
-	struct tls_error error;
 
-	uint32_t flags;
-	uint32_t state;
 
-	char *servername;
-	int socket;
+#define EVT_IS_TLS    1
+#define EVT_IS_DTLS   2
 
-	SSL *ssl_conn;
-	SSL_CTX *ssl_ctx;
 
-	struct tls_sni_ctx *sni_ctx;
+#define EVT_NEED_FLUSH                              (-2)
+#define EVT_NEED_READ                               (-3)
 
-	X509 *ssl_peer_cert;
-	STACK_OF(X509) *ssl_peer_chain;
+#define EVT_HANDSHAKE_COMPLETED                     (1 << 3)
 
-	struct tls_conninfo *conninfo;
 
-	struct tls_ocsp *ocsp;
 
-	tls_read_cb read_cb;
-	tls_write_cb write_cb;
-	void *cb_arg;
-};
+#define EVT_VERIFY_NONE             0
+#define EVT_VERIFY_OPTIONAL         1
+#define EVT_VERIFY_REQUIRED         2
 
-int tls_set_mem(char **_dest, size_t *_destlen, const void *_src,
-    size_t _srclen);
-int tls_set_string(const char **_dest, const char *_src);
 
-struct tls_keypair *tls_keypair_new(void);
-void tls_keypair_clear(struct tls_keypair *_keypair);
-void tls_keypair_free(struct tls_keypair *_keypair);
-int tls_keypair_set_cert_file(struct tls_keypair *_keypair,
-    struct tls_error *_error, const char *_cert_file);
-int tls_keypair_set_cert_mem(struct tls_keypair *_keypair,
-    struct tls_error *_error, const uint8_t *_cert, size_t _len);
-int tls_keypair_set_key_file(struct tls_keypair *_keypair,
-    struct tls_error *_error, const char *_key_file);
-int tls_keypair_set_key_mem(struct tls_keypair *_keypair,
-    struct tls_error *_error, const uint8_t *_key, size_t _len);
-int tls_keypair_set_ocsp_staple_file(struct tls_keypair *_keypair,
-    struct tls_error *_error, const char *_ocsp_file);
-int tls_keypair_set_ocsp_staple_mem(struct tls_keypair *_keypair,
-    struct tls_error *_error, const uint8_t *_staple, size_t _len);
-int tls_keypair_load_cert(struct tls_keypair *_keypair,
-    struct tls_error *_error, X509 **_cert);
+evt_config_t*
+evt_default_cfg(void);
 
-struct tls_sni_ctx *tls_sni_ctx_new(void);
-void tls_sni_ctx_free(struct tls_sni_ctx *sni_ctx);
+evt_config_t*
+evt_cfg_new(void);
 
-struct tls *tls_new(void);
-struct tls *tls_server_conn(struct tls *ctx);
+int
+evt_init(void);
 
-int tls_check_name(struct tls *ctx, X509 *cert, const char *servername,
-    int *match);
-int tls_configure_server(struct tls *ctx);
 
-int tls_configure_ssl(struct tls *ctx, SSL_CTX *ssl_ctx);
-int tls_configure_ssl_keypair(struct tls *ctx, SSL_CTX *ssl_ctx,
-    struct tls_keypair *keypair, int required);
-int tls_configure_ssl_verify(struct tls *ctx, SSL_CTX *ssl_ctx, int verify);
 
-int tls_handshake_client(struct tls *ctx);
-int tls_handshake_server(struct tls *ctx);
 
-int tls_config_load_file(struct tls_error *error, const char *filetype,
-    const char *filename, char **buf, size_t *len);
-int tls_config_ticket_autorekey(struct tls_config *config);
-int tls_host_port(const char *hostport, char **host, char **port);
 
-int tls_set_cbs(struct tls *ctx,
-    tls_read_cb read_cb, tls_write_cb write_cb, void *cb_arg);
+evt_error_t
+evt_tls_get_err(const evt_tls_t *tls);
 
-void tls_error_clear(struct tls_error *error);
-int tls_error_set(struct tls_error *error, const char *fmt, ...)
-    __attribute__((__format__ (printf, 2, 3)))
-    __attribute__((__nonnull__ (2)));
-int tls_error_setx(struct tls_error *error, const char *fmt, ...)
-    __attribute__((__format__ (printf, 2, 3)))
-    __attribute__((__nonnull__ (2)));
-int tls_config_set_error(struct tls_config *cfg, const char *fmt, ...)
-    __attribute__((__format__ (printf, 2, 3)))
-    __attribute__((__nonnull__ (2)));
-int tls_config_set_errorx(struct tls_config *cfg, const char *fmt, ...)
-    __attribute__((__format__ (printf, 2, 3)))
-    __attribute__((__nonnull__ (2)));
-int tls_set_error(struct tls *ctx, const char *fmt, ...)
-    __attribute__((__format__ (printf, 2, 3)))
-    __attribute__((__nonnull__ (2)));
-int tls_set_errorx(struct tls *ctx, const char *fmt, ...)
-    __attribute__((__format__ (printf, 2, 3)))
-    __attribute__((__nonnull__ (2)));
-int tls_set_ssl_errorx(struct tls *ctx, const char *fmt, ...)
-    __attribute__((__format__ (printf, 2, 3)))
-    __attribute__((__nonnull__ (2)));
+void
+evt_tls_set_err( evt_tls_t *tls, evt_error_t err);
 
-int tls_ssl_error(struct tls *ctx, SSL *ssl_conn, int ssl_ret,
-    const char *prefix);
+evt_tls_t *evt_tls_new(void);
+void evt_tls_free(evt_tls_t *tls);
 
-int tls_conninfo_populate(struct tls *ctx);
-void tls_conninfo_free(struct tls_conninfo *conninfo);
+evt_tls_t *evt_tls_client(void);
+evt_tls_t *evt_tls_server(void);
 
-int tls_ocsp_verify_cb(SSL *ssl, void *arg);
-int tls_ocsp_stapling_cb(SSL *ssl, void *arg);
-void tls_ocsp_free(struct tls_ocsp *ctx);
-struct tls_ocsp *tls_ocsp_setup_from_peer(struct tls *ctx);
-int tls_hex_string(const unsigned char *_in, size_t _inlen, char **_out,
-    size_t *_outlen);
-int tls_cert_hash(X509 *_cert, char **_hash);
-int tls_cert_pubkey_hash(X509 *_cert, char **_hash);
 
-int tls_password_cb(char *_buf, int _size, int _rwflag, void *_u);
+int evt_configure( evt_tls_t *tls, evt_config_t *cfg);
+int evt_tls_is_handshake_done(const evt_tls_t *conn);
 
-__END_HIDDEN_DECLS
+int evt_tls_handshake(evt_tls_t *conn, evt_handshake_cb hcb);
 
-/* XXX this function is not fully hidden so relayd can use it */
-void tls_config_skip_private_key_check(struct tls_config *config);
+int evt_tls_connect(evt_tls_t *conn, evt_handshake_cb hcb);
+int evt_tls_accept(evt_tls_t *conn, evt_handshake_cb hcb);
+    
+evt_error_t
+evt_cfg_get_err(const evt_config_t *cfg);
 
-#endif
+void
+evt_cfg_set_err(evt_config_t *cfg, evt_error_t code);
+
+const char *evt_cfg_strerror(const evt_config_t *cfg);
+int
+evt_cfg_set_crtf_key(evt_config_t *cfg, const char *cert, const char *key);
+
+int evt_cfg_set_ca_path( evt_config_t *cfg, char *ca_path);
+
+int evt_cfg_set_crl_path( evt_config_t *cfg, char *crl_path);
+int evt_cfg_set_ciphers(evt_config_t *cfg, char *ciphers);
+void evt_cfg_set_protocols(evt_config_t *cfg, int proto);
+void evt_cfg_set_transport(evt_config_t *cfg, int transport);
+void evt_cfg_set_verify(evt_config_t *cfg, int mode);
+void evt_cfg_del( evt_config_t *cfg);

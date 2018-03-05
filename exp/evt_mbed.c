@@ -1,94 +1,34 @@
 #include <string.h>
-#include <stdio.h>
-#include <errno.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 
+#include "evt_mbed.h"
 
 
-#include <mbedtls/ssl.h>
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/debug.h"
-
-
-typedef struct evt_config_s
+static int set_str( const char *src, const char **dest)
 {
-    //all const chars are dynamically managed
-    const char *ca_store;
-    const char *crl_path;
-    const char *cert_file;
-    const char *key_file;
-    const char *ciphers;
+    int rv = -1;
+    free((char *)*dest);
 
-    int         cfg_err;
-    uint32_t    protocols;
-    uint32_t    transport; /* TCP or UDP - Default is TCP */
-    uint32_t    verify_peer;
-    int         ca_depth;
-    int         use_count;
+    if ( src != NULL) {
+        if ((*dest = strdup(src)) == NULL) {
+            goto err;
+        }
+    }
+    rv = 0;
 
-}evt_config_t;
-static evt_config_t *evt_default;
-
-
-typedef enum evt_endpt_t {
-    ENDPT_IS_UNSPECIFIED
-   ,ENDPT_IS_CLIENT
-   ,ENDPT_IS_SERVER
-}evt_endpt_t;
-
-
-typedef struct evt_tls_s evt_tls_t;
-typedef void (*evt_handshake_cb)( evt_tls_t *conn, int status);
-/* generate this through macro when dtls need to be supported */
-struct evt_tls_s {
-    int                            tls_err;
-    evt_endpt_t                    role;
-    uint32_t                       state;
-
-    void                           *user_data;
-
-    evt_config_t                   *config;
-
-    evt_handshake_cb               handshake_cb;
-
-
-    mbedtls_entropy_context        entropy;
-    mbedtls_ctr_drbg_context       ctr_drbg;
-    mbedtls_ssl_context            ssl_conn;
-    mbedtls_ssl_config             mconf;
-    mbedtls_x509_crt               cert;
-    mbedtls_pk_context             pkey;
-};
+err:
+    return rv;
+}
 
 
 
-typedef enum evt_error_t {
-    EVT_ERR_NONE = 0
-
-   ,EVT_ERR_NOMEM
-
-   ,EVT_ERR_NO_KEYPAIR
-   ,EVT_ERR_CIPHER_FAIL
-
-   ,EVT_ERR_NOROLE
-   ,EVT_ERR_HSHAKE_DONE
-   ,EVT_ERR_NOCFG
-
-   ,EVT_ERR_MAX_COUNT /* Don't add any entry after this line */
-} evt_error_t;
-
-const char *err_str[] = {
-    "No error found"
-   ,"Insufficient memory"
-   ,"Cert or Key or Both required"
-   ,"Cipher setting failed"
-   ,"No role specified"
-   ,"Handshake completed already"
-   ,"Not configured yet"
-};
+evt_error_t
+evt_tls_get_err(const evt_tls_t *tls)
+{
+    return tls->tls_err;
+}
 
 void
 evt_tls_set_err( evt_tls_t *tls, evt_error_t err)
@@ -144,7 +84,6 @@ evt_tls_t *evt_tls_client(void)
     }
 
     client->role = ENDPT_IS_CLIENT;
-    
     return client;
 }
 
@@ -157,9 +96,11 @@ evt_tls_t *evt_tls_server(void)
     }
 
     server->role = ENDPT_IS_SERVER;
-    
     return server;
 }
+
+
+static evt_config_t *evt_default;
 
 void evt_cfg_del( evt_config_t *cfg);
 int evt_configure( evt_tls_t *tls, evt_config_t *cfg)
@@ -175,27 +116,131 @@ int evt_configure( evt_tls_t *tls, evt_config_t *cfg)
     return 0;
 }
 
-static int
-set_mbedtls_config( evt_tls_t *tls)
+static
+int my_send(void *ctx, const unsigned char *buf, size_t len)
 {
+//    evt_tls_t *tls = (evt_tls_t*)ctx;
+//    evt_tls_t* self = (evt_tls_t*)tls->data;
+//    if (tls->nio_data_len) {
+//        return MBEDTLS_ERR_SSL_WANT_WRITE;
+//    }
+//    memcpy(tls->nio_data, buf, len);
+//    tls->nio_data_len = len;
+//    tls->offset = 0;
+//    return len;
+}
+
+static
+int my_recv(void *ctx, unsigned char *buf, size_t len)
+{
+//    evt_tls_t* tls = (evt_tls_t*)ctx;
+//    evt_tls_t* self = (evt_tls_t*)tls->data;
+//    if (self->nio_data_len < len ) {
+//        return MBEDTLS_ERR_SSL_WANT_READ;
+//    }
+//    memcpy( buf, self->nio_data + self->offset, len);
+//    self->nio_data_len -= len;
+//    self->offset +=len;
+//    return len;
+}
+
+static int
+configure_mbedtls( evt_tls_t *tls )
+{
+    /* No input check done as caller should have done that */
+    int rv = -1;
+    evt_config_t *ecfg = tls->config;
+    mbedtls_ssl_config *mcfg = &tls->mconf;
+    assert(tls->role == ENDPT_IS_SERVER ||  tls->role == ENDPT_IS_CLIENT);
+
+    if ( ecfg->ca_store == NULL ) {
+        if (tls->get_ca_cert) {
+            /*get_ca_cert to return platform specific default ca_certs file */
+            //make this as new API
+            const char *str = tls->get_ca_cert(tls);
+            if (set_str(str, &ecfg->ca_file) != 0 ) {
+                evt_tls_set_err(tls, EVT_ERR_NOMEM);
+                goto err;
+            }
+
+            if (mbedtls_x509_crt_parse_file(&tls->ca_certs, ecfg->ca_file) != 0)
+            {
+                evt_tls_set_err(tls, EVT_ERR_BADCERT);
+                goto err;
+            }
+        }
+    }
+    else {
+        if ( mbedtls_x509_crt_parse_path(&tls->ca_certs, ecfg->ca_store) != 0) {
+            evt_tls_set_err(tls, EVT_ERR_BADCERT);
+            goto err;
+        }
+    }
+
     /* no check done as the caller already have checked these */
-    int endpt = ENDPT_IS_SERVER ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT;
+    int transport = (ecfg->transport == EVT_IS_TLS) ?
+                        MBEDTLS_SSL_TRANSPORT_STREAM :
+                            MBEDTLS_SSL_TRANSPORT_DATAGRAM;
 
-    int transport = EVT_IS_TLS ? MBEDTLS_SSL_TRANSPORT_STREAM :
-                    MBEDTLS_SSL_TRANSPORT_DATAGRAM;
+    int endpt = (tls->role == ENDPT_IS_SERVER) ?
+                    MBEDTLS_SSL_IS_SERVER :
+                        MBEDTLS_SSL_IS_CLIENT;
 
-    int preset;
+    /* TODO: get the version from ecfg->protocols through a function */
+    mbedtls_ssl_conf_min_version(mcfg,
+        MBEDTLS_SSL_MAJOR_VERSION_3,
+        MBEDTLS_SSL_MINOR_VERSION_2);
 
+    /*make sure that all the defaults are loaded, cipher we overwrite next*/
+    if (mbedtls_ssl_config_defaults(
+        mcfg,
+        endpt,
+        transport,
+        MBEDTLS_SSL_PRESET_DEFAULT
+       ) != 0) {
+        evt_tls_set_err(tls, EVT_ERR_NOMEM);
+        goto err;
+    }
+
+    /* TODO : using the default, need to make configurable */
+    //mbedtls_ssl_conf_ciphersuites(&mcfg, my_ciphers);
+
+
+    mbedtls_ssl_conf_authmode(mcfg, ecfg->verify_peer);
+    /* ca_depth is hardcoded in mbedtls and hence ignored  */
+
+    if (mbedtls_ctr_drbg_seed(&(tls->ctr_drbg),
+                mbedtls_entropy_func,
+                &(tls->entropy),
+                (const unsigned char *) "evt seeding",
+                sizeof("evt seeding") 
+       ) != 0)  {
+        evt_tls_set_err(tls, EVT_ERR_ESEED);
+        goto err;
+    }
+
+    mbedtls_ssl_set_bio( &(tls->ssl_conn), tls, my_send, my_recv, NULL);
     
-    mbedtls_ssl_config_defaults(&tls->mconfig, endpt, transport, preset);
+    rv = 0;
 
+err:
+    return rv;
 }
 
 
-#define EVT_HANDSHAKE_COMPLETED                     (1 << 3)
+int evt_tls_is_handshake_done(const evt_tls_t *conn)
+{
+    return conn->ssl_conn.state == MBEDTLS_SSL_HANDSHAKE_OVER;
+}
+
 int evt_tls_handshake(evt_tls_t *conn, evt_handshake_cb hcb)
 {
     int rv = -1;
+
+    if ( conn->config == NULL) {
+        evt_tls_set_err(conn, EVT_ERR_NOCFG);
+        goto err;
+    }
 
     if ( conn->role == ENDPT_IS_UNSPECIFIED ) {
         evt_tls_set_err(conn, EVT_ERR_NOROLE);
@@ -207,22 +252,38 @@ int evt_tls_handshake(evt_tls_t *conn, evt_handshake_cb hcb)
         goto err;
     }
 
-    if ( conn->config == NULL) {
-        evt_tls_set_err(conn, EVT_ERR_NOCFG);
+    if ( configure_mbedtls(conn) != 0 ) {
         goto err;
     }
 
-    conn->handshake_cb = hcb;
-
-    if ( conn->role == ENDPT_IS_SERVER ) {
-        //if (1) //accept
+    if ( conn->handshake_cb == NULL) {
+        conn->handshake_cb = hcb;
     }
-    else {
-        assert( conn->role == ENDPT_IS_CLIENT && "invalid role");
-        //if (2) //connect
+
+    if ( (rv = mbedtls_ssl_handshake_step(&conn->ssl_conn)) != 0 ) {
+        if (rv == MBEDTLS_ERR_SSL_WANT_READ) {
+            rv = EVT_NEED_READ;
+            goto out;
+        }
+        if (rv == MBEDTLS_ERR_SSL_WANT_WRITE) {
+            rv = EVT_NEED_FLUSH;
+            goto out;
+        }
+        /* TODO: Do we need to reset the connection? */
+        evt_tls_set_err(conn, EVT_ERR_HSHAKE);
+        rv = -1;
+        conn->handshake_cb(conn, rv);
+        goto err;
+    }
+
+    /* check if handshake is done and trigger callback */
+    if ( evt_tls_is_handshake_done(conn)) {
+        conn->handshake_cb(conn, rv);
     }
 
     rv = 0;
+out:
+    return rv;
 
 err:
     return rv;
@@ -239,18 +300,13 @@ int evt_tls_accept(evt_tls_t *conn, evt_handshake_cb hcb)
 }
 
 
-#define EVT_TLS_1_0                 (1 << 0)
-#define EVT_TLS_1_1                 (1 << 1)
-#define EVT_TLS_1_2                 (1 << 2)
-
-#define EVT_PROTOCOLS_TLS_1         (EVT_TLS_1_0|EVT_TLS_1_1|EVT_TLS_1_2)
-
-#define EVT_TLS_PROTOCOL_ALL        EVT_PROTOCOLS_TLS_1
-#define EVT_TLS_DEFAULT_PROTOCOL    EVT_TLS_1_2
 
 
-#define EVT_DEFAULT_CIPHERS   "TLSv1.2"
-
+evt_error_t
+evt_cfg_get_err(const evt_config_t *cfg)
+{
+    return cfg->cfg_err;
+}
 
 void
 evt_cfg_set_err(evt_config_t *cfg, evt_error_t code)
@@ -261,22 +317,6 @@ evt_cfg_set_err(evt_config_t *cfg, evt_error_t code)
 const char *evt_cfg_strerror(const evt_config_t *cfg)
 {
     return err_str[cfg->cfg_err];
-}
-
-int set_str( const char *src, const char **dest)
-{
-    int rv = -1;
-    free((char *)*dest);
-
-    if ( src != NULL) {
-        if ((*dest = strdup(src)) == NULL) {
-            goto err;
-        }
-    }
-    rv = 0;
-
-err:
-    return rv;
 }
 
 int
@@ -298,7 +338,6 @@ evt_cfg_set_crtf_key(evt_config_t *cfg, const char *cert, const char *key)
         evt_cfg_set_err(cfg, EVT_ERR_NOMEM);
         goto err;
     }
-
     rv = 0;
 
 err:
@@ -332,10 +371,6 @@ void evt_cfg_set_transport(evt_config_t *cfg, int transport)
     cfg->transport = transport;
 }
 
-#define EVT_VERIFY_NONE             (1 << 0)
-#define EVT_VERIFY_OPTIONAL         (1 << 1)
-#define EVT_VERIFY_REQUIRED         (1 << 2)
-
 
 void evt_cfg_set_verify(evt_config_t *cfg, int mode)
 {
@@ -357,11 +392,6 @@ void evt_cfg_del( evt_config_t *cfg)
     free(cfg);
     cfg = NULL;
 }
-
-#define EVT_IS_TLS    1
-#define EVT_IS_DTLS   2
-
-
 
 evt_config_t* evt_cfg_new(void)
 {
@@ -402,10 +432,8 @@ int evt_init(void)
     if ( (evt_default = evt_cfg_new()) == NULL ) {
         return -1;
     }
-
     return 0;
 }
-
 
 evt_config_t *evt_default_cfg(void)
 {
@@ -421,52 +449,3 @@ evt_config_t *evt_default_cfg(void)
 }
 
 
-int main()
-{
-    evt_config_t *cfg = NULL;
-
-    cfg = evt_default_cfg();
-    assert(cfg != NULL && "test failed");
-    assert( cfg == evt_default && "test failed");
-    assert( 1 == cfg->use_count && "test failed");
-    assert( (cfg->verify_peer == EVT_VERIFY_REQUIRED) && "test failed");
-    assert( (cfg->transport == EVT_IS_TLS) && "test failed");
-    assert( (cfg->protocols == EVT_TLS_DEFAULT_PROTOCOL) && "test failed");
-    assert( (strcasecmp(cfg->ciphers, "TLS1.2") == 0) && "test failed");
-
-    cfg = evt_cfg_new();
-    assert(cfg != NULL && "test failed");
-    assert( cfg != evt_default && "test failed");
-    assert( 1 == cfg->use_count && "test failed");
-    assert( (cfg->verify_peer == EVT_VERIFY_REQUIRED) && "test failed");
-    assert( (cfg->transport == EVT_IS_TLS) && "test failed");
-    assert( (cfg->protocols == EVT_TLS_DEFAULT_PROTOCOL) && "test failed");
-    assert( (strcasecmp(cfg->ciphers, "TLS1.2") == 0) && "test failed");
-
-    evt_cfg_del(cfg);
-
-    //test the same thing after calling evt_init()
-    assert( evt_init() == 0 && "test failed");
-
-    cfg = evt_default_cfg();
-    assert(cfg != NULL && "test failed");
-    assert( cfg == evt_default && "test failed");
-    assert( 1 == cfg->use_count && "test failed");
-    assert( (cfg->verify_peer == EVT_VERIFY_REQUIRED) && "test failed");
-    assert( (cfg->transport == EVT_IS_TLS) && "test failed");
-    assert( (cfg->protocols == EVT_TLS_DEFAULT_PROTOCOL) && "test failed");
-    assert( (strcasecmp(cfg->ciphers, "TLS1.2") == 0) && "test failed");
-
-    cfg = evt_cfg_new();
-    assert(cfg != NULL && "test failed");
-    assert( cfg != evt_default && "test failed");
-    assert( 1 == cfg->use_count && "test failed");
-    assert( (cfg->verify_peer == EVT_VERIFY_REQUIRED) && "test failed");
-    assert( (cfg->transport == EVT_IS_TLS) && "test failed");
-    assert( (cfg->protocols == EVT_TLS_DEFAULT_PROTOCOL) && "test failed");
-    assert( (strcasecmp(cfg->ciphers, "TLS1.2") == 0) && "test failed");
-
-    evt_cfg_del(cfg);
-
-    printf("Test passed\n");
-}

@@ -45,7 +45,7 @@ typedef struct keypair_t  {
         size_t key_len;
 
         char *pubkey_hash;
-        evt_kypr_t *next;
+       // evt_kypr_t *next;
 }evt_kypr_t;
 
 
@@ -172,7 +172,6 @@ int evt_init(void)
 
 int main()
 {
-    int rv = -1;
     if ( evt_init() != 0 ) {
         goto err;
     
