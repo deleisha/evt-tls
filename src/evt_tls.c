@@ -12,11 +12,35 @@
 #include <string.h>
 #include "evt_tls.h"
 
+/**
+ * Functions copy from https://github.com/libimobiledevice/libimobiledevice/blob/master/src/idevice.c
+ */
+#if OPENSSL_VERSION_NUMBER < 0x10002000L
+static void SSL_COMP_free_compression_methods(void)
+{
+	sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
+}
+#endif
+
+static void openssl_remove_thread_state(void)
+{
+/**
+ * ERR_remove_thread_state() is available since OpenSSL 1.0.0-beta1,
+ * but deprecated in OpenSSL 1.1.0
+ */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER >= 0x10000001L
+	ERR_remove_thread_state(NULL);
+#else
+	ERR_remove_state(0);
+#endif
+#endif
+}
+
 /*
  *All the asserts used in the code are possible targets for error
  * handling/error reporting
 */
-
 evt_endpt_t evt_tls_get_role(const evt_tls_t *t)
 {
     assert(t != NULL);
@@ -413,9 +437,7 @@ void evt_ctx_free(evt_ctx_t *ctx)
     SSL_CTX_free(ctx->ctx);
     ctx->ctx = NULL;
 
-#ifdef HAVE_ERR_REMOVE_THREAD_STATE
- 	ERR_remove_thread_state(NULL);
-#else
+    openssl_remove_thread_state();
     ENGINE_cleanup();
     CONF_modules_unload(1);
     ERR_free_strings();
