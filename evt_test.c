@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
 #include "evt_tls.h"
 
 typedef struct test_tls_s test_tls_t;
