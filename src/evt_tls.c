@@ -9,6 +9,7 @@
 //%///////////////////////////////////////////////////////////////////////////
 
 #include <assert.h>
+#include <string.h>
 #include "evt_tls.h"
 
 /*
@@ -412,13 +413,14 @@ void evt_ctx_free(evt_ctx_t *ctx)
     SSL_CTX_free(ctx->ctx);
     ctx->ctx = NULL;
 
-    ERR_remove_state(0);
+#ifdef HAVE_ERR_REMOVE_THREAD_STATE
+ 	ERR_remove_thread_state(NULL);
+#else
     ENGINE_cleanup();
     CONF_modules_unload(1);
     ERR_free_strings();
     EVP_cleanup();
-    sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
-    //SSL_COMP_free_compression_methods();
+    SSL_COMP_free_compression_methods();
     CRYPTO_cleanup_all_ex_data();
 }
 
