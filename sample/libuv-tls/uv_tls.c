@@ -10,6 +10,7 @@
 
 #include "uv_tls.h"
 #include <assert.h>
+#include <string.h>
 
 static void alloc_cb(uv_handle_t *handle, size_t size, uv_buf_t *buf)
 {

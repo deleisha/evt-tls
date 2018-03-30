@@ -11,6 +11,7 @@
 #include "uv_tls.h"
 #include <assert.h>
 #include <unistd.h>
+#include <string.h>
 
 void echo_read(uv_tls_t *strm, ssize_t nrd, const uv_buf_t *bfr)
 {
